@@ -1,9 +1,7 @@
 import { DeemixApp, sessionDZ } from "@/deemixApp.js";
 import { logger } from "@/helpers/logger.js";
-import {
-	resetLoginCredentials,
-	saveLoginCredentials,
-} from "@/helpers/loginStorage.js";
+import { saveLoginCredentials } from "@/helpers/loginStorage.js";
+import { requireAdmin } from "@/middleware/auth.js";
 import { type ApiHandler } from "@/types.js";
 import { Deezer } from "deezer-sdk";
 import type { RequestHandler } from "express";
@@ -36,7 +34,6 @@ const handler: RequestHandler<any, any, RawLoginArlBody, any> = async (
 	if (!sessionDZ[req.session.id]) sessionDZ[req.session.id] = new Deezer();
 	const deemix: DeemixApp = req.app.get("deemix");
 	const dz: Deezer = sessionDZ[req.session.id];
-	const isSingleUser: boolean = req.app.get("isSingleUser");
 
 	if (!req.body || !req.body.arl) {
 		res.status(400).send();
@@ -98,14 +95,23 @@ const handler: RequestHandler<any, any, RawLoginArlBody, any> = async (
 		response !== LoginStatus.FAILED
 	) {
 		deemix.startQueue(dz);
-		if (isSingleUser)
-			saveLoginCredentials({
-				arl: returnValue.arl,
-			});
-	} else if (isSingleUser) resetLoginCredentials();
+	}
+
+	// Persist the shared ARL only on a genuine login success so it is restored on
+	// the next startup. The explicit status-code check also means the test path
+	// (which returns a boolean) never writes to the real config folder, and a
+	// failed/offline login leaves any previous ARL intact.
+	const loginSucceeded =
+		response === LoginStatus.SUCCESS ||
+		response === LoginStatus.ALREADY_LOGGED ||
+		response === LoginStatus.FORCED_SUCCESS;
+	if (loginSucceeded) {
+		saveLoginCredentials({ arl: returnValue.arl });
+	}
+
 	res.status(200).send(returnValue);
 };
 
-const apiHandler = { path, handler };
+const apiHandler = { path, handler, middleware: [requireAdmin] };
 
 export default apiHandler;

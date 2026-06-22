@@ -9,6 +9,8 @@ export type Port = number | string | boolean;
 export interface ApiHandler {
 	path: string;
 	handler: RequestHandler<any, any, any, any>;
+	/** Optional middleware (e.g. requireAdmin) run before the handler. */
+	middleware?: RequestHandler[];
 }
 
 interface BaseDeezerObject {

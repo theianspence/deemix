@@ -13,6 +13,7 @@ export function formatSingleTrack(track: { [key: string]: any }) {
 
 	return {
 		/* Track */
+		trackID: getPropertyWithFallback(track, "id", "SNG_ID"),
 		trackTitle: getPropertyWithFallback(track, "title", "SNG_TITLE"),
 		trackTitleVersion: getPropertyWithFallback(
 			track,

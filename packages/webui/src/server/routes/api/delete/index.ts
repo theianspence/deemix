@@ -1,3 +1,4 @@
 import { type ApiHandler } from "../../../types.js";
+import deleteHistory from "./deleteHistory.js";
 
-export default [] as ApiHandler[];
+export default [deleteHistory] as ApiHandler[];

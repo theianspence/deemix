@@ -1,12 +1,23 @@
 <script setup lang="ts">
 import { isEmpty } from "lodash-es";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import { sendAddToQueue } from "@/utils/downloads";
+import { useDownloadStatus } from "@/use/download-status";
 import { convertDuration } from "@/utils/utils";
 import { emitter } from "@/utils/emitter";
 import { useI18n } from "vue-i18n";
 import { onMounted, ref } from "vue";
 
 const { t } = useI18n();
+
+const { getStatus, loadStatuses } = useDownloadStatus();
+function loadTrackStatuses(tracks) {
+	if (!tracks) return;
+	const ids = tracks
+		.filter((track) => track && track.type === "track" && track.id != null)
+		.map((track) => track.id);
+	loadStatuses(ids);
+}
 
 const title = ref("");
 const metadata = ref("");
@@ -82,6 +93,7 @@ function showAlbum(data) {
 		body.value = null;
 	} else {
 		body.value = albumTracks;
+		loadTrackStatuses(albumTracks);
 	}
 }
 function showPlaylist(data) {
@@ -110,6 +122,7 @@ function showPlaylist(data) {
 		body.value = null;
 	} else {
 		body.value = playlistTracks;
+		loadTrackStatuses(playlistTracks);
 	}
 }
 function showSpotifyPlaylist(data) {
@@ -235,6 +248,7 @@ onMounted(() => {
 								<div
 									class="table__cell-content table__cell-content--vertical-center"
 								>
+									<DownloadIndicator :status="getStatus(track.id)" />
 									<i
 										v-if="track.explicit_lyrics"
 										class="material-icons title-icon"

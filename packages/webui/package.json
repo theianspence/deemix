@@ -33,6 +33,7 @@
 		".": "./dist/main.js"
 	},
 	"dependencies": {
+		"better-sqlite3": "^12.2.0",
 		"cookie-parser": "1.4.6",
 		"date-fns": "^3.6.0",
 		"deemix": "workspace:*",
@@ -61,6 +62,7 @@
 		"yargs": "17.7.2"
 	},
 	"devDependencies": {
+		"@types/better-sqlite3": "^7.6.12",
 		"@types/cookie-parser": "^1.4.7",
 		"@types/express": "^4.17.21",
 		"@types/express-session": "^1.17.3",

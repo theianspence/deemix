@@ -1,3 +1,5 @@
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { fetchData } from "@/utils/api-utils";
 import { emitter } from "@/utils/emitter";
 import {
@@ -20,6 +22,8 @@ const Search = () => import("@/views/SearchView.vue");
 const Settings = () => import("@/views/SettingsPage.vue");
 const Artist = () => import("@/views/ArtistView.vue");
 const LinkAnalyzer = () => import("@/views/LinkAnalyzer.vue");
+const History = () => import("@/views/HistoryView.vue");
+const Admin = () => import("@/views/AdminView.vue");
 
 const routes: RouteRecordRaw[] = [
 	{
@@ -105,6 +109,23 @@ const routes: RouteRecordRaw[] = [
 		component: Settings,
 	},
 	{
+		path: "/history",
+		name: "History",
+		component: History,
+		meta: {
+			notKeepAlive: true,
+		},
+	},
+	{
+		path: "/admin",
+		name: "Admin",
+		component: Admin,
+		meta: {
+			notKeepAlive: true,
+			requiresAdmin: true,
+		},
+	},
+	{
 		path: "/search",
 		name: "Search",
 		component: Search,
@@ -127,11 +148,22 @@ const router = createRouter({
 	},
 });
 
-router.beforeEach((to, _, next) => {
+router.beforeEach(async (to, _, next) => {
 	if (to.name && to.name !== "Home") {
 		document.title = to.name.toString() + " · Deemix";
 	} else {
 		document.title = "Deemix";
+	}
+
+	// Keep admin-only pages out of reach for standard users (the server also
+	// enforces this on every admin endpoint).
+	if (to.meta.requiresAdmin) {
+		const userStore = useUserStore(pinia);
+		await userStore.ensureLoaded();
+		if (!userStore.isAdmin) {
+			next({ name: "Home" });
+			return;
+		}
 	}
 
 	switch (to.name) {

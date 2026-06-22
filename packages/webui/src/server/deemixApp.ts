@@ -1,6 +1,11 @@
 import { CantStream, NotLoggedIn } from "@/helpers/errors.js";
+import {
+	addDownloadRecords,
+	type DownloadRecord,
+} from "@/helpers/historyDb.js";
 import { logger } from "@/helpers/logger.js";
-import { GUI_VERSION, WEBUI_PACKAGE_VERSION } from "@/helpers/versions.js";
+import { getLoginCredentials } from "@/helpers/loginStorage.js";
+import { WEBUI_PACKAGE_VERSION } from "@/helpers/versions.js";
 import {
 	Collection,
 	Convertable,
@@ -28,7 +33,40 @@ export const configFolder: string = utils.getConfigFolder();
 setDeezerCacheDir(configFolder);
 export const defaultSettings: Settings = DEFAULT_SETTINGS;
 
-export const sessionDZ: Record<string, Deezer> = {};
+// In the multi-user / proxy-auth model there is a single shared Deezer account
+// (one ARL managed by admins) used for everyone's searches and downloads. We
+// expose it through a Proxy with the original `sessionDZ` shape so the ~20
+// existing endpoints (`sessionDZ[req.session.id]`) keep working untouched — the
+// session id is ignored and every lookup returns the one shared instance.
+let sharedDeezer = new Deezer();
+export const sessionDZ: Record<string, Deezer> = new Proxy(
+	{} as Record<string, Deezer>,
+	{
+		get: () => sharedDeezer,
+		set: (_target, _prop, value) => {
+			sharedDeezer = value as Deezer;
+			return true;
+		},
+	}
+);
+
+/** Log the shared account in from the stored ARL at server startup. */
+export async function initSharedLogin(): Promise<void> {
+	const { arl } = getLoginCredentials();
+	if (!arl) {
+		logger.info(
+			"No stored Deezer ARL — an admin must configure one in the Admin panel."
+		);
+		return;
+	}
+	try {
+		const ok = await sharedDeezer.loginViaArl(arl);
+		if (ok) logger.info("Logged in to Deezer with the stored ARL.");
+		else logger.warn("Stored Deezer ARL is invalid or expired.");
+	} catch (e) {
+		logger.error(e);
+	}
+}
 
 type DeezerAvailable = "yes" | "no" | "no-network";
 
@@ -100,7 +138,7 @@ export class DeemixApp {
 			try {
 				const responseJson = await got
 					.get(
-						`https://raw.githubusercontent.com/bambanah/deemix/main/packages/${GUI_VERSION !== undefined ? "gui" : "webui"}/package.json`
+						`https://raw.githubusercontent.com/bambanah/deemix/main/packages/webui/package.json`
 					)
 					.json();
 				this.latestVersion = JSON.parse(JSON.stringify(responseJson)).version;
@@ -134,13 +172,9 @@ export class DeemixApp {
 
 	isUpdateAvailable(): boolean {
 		return (
-			this.latestVersion.localeCompare(
-				GUI_VERSION ?? WEBUI_PACKAGE_VERSION,
-				undefined,
-				{
-					numeric: true,
-				}
-			) === 1
+			this.latestVersion.localeCompare(WEBUI_PACKAGE_VERSION, undefined, {
+				numeric: true,
+			}) === 1
 		);
 	}
 
@@ -175,7 +209,8 @@ export class DeemixApp {
 		dz: Deezer,
 		url: string[],
 		bitrate: number,
-		retry: boolean = false
+		retry: boolean = false,
+		requestedBy: string = "unknown"
 	) {
 		if (!dz.loggedIn) throw new NotLoggedIn();
 		if (
@@ -257,10 +292,18 @@ export class DeemixApp {
 			);
 			this.queue[downloadObj.uuid] = downloadObj.getEssentialDict();
 			this.queue[downloadObj.uuid].status = "inQueue";
+			// Attribute the download to the requesting user (from the proxy auth
+			// header). Persisted with the queue item so it survives a restart and
+			// is available when the history record is written on completion.
+			this.queue[downloadObj.uuid].requestedBy = requestedBy;
 
 			fs.writeFileSync(
 				configFolder + `queue${sep}${downloadObj.uuid}.json`,
-				JSON.stringify({ ...downloadObj.toDict(), status: "inQueue" })
+				JSON.stringify({
+					...downloadObj.toDict(),
+					status: "inQueue",
+					requestedBy,
+				})
 			);
 
 			slimmedObjects.push(downloadObj.getSlimmedDict());
@@ -299,6 +342,10 @@ export class DeemixApp {
 					.readFileSync(configFolder + `queue${sep}${currentUUID}.json`)
 					.toString()
 			);
+			const requestedBy: string =
+				currentItem.requestedBy ||
+				this.queue[currentUUID]?.requestedBy ||
+				"unknown";
 			let downloadObject: Single | Collection | Convertable | undefined =
 				undefined;
 
@@ -350,9 +397,13 @@ export class DeemixApp {
 					this.queue[currentUUID].status = "completed";
 				}
 
+				// Persist per-track history records for this finished job.
+				this.recordHistory(downloadObject, requestedBy);
+
 				const savedObject = {
 					...downloadObject.getSlimmedDict(),
 					status: this.queue[currentUUID].status,
+					requestedBy,
 				};
 				// Save queue status
 				this.queue[currentUUID] = savedObject;
@@ -369,6 +420,67 @@ export class DeemixApp {
 
 			this.currentJob = null;
 		} while (this.queueOrder.length);
+	}
+
+	/**
+	 * Write one history row per track for a finished job, reading the file paths
+	 * and per-track results the Downloader already recorded on the download
+	 * object (`files` for successes, `errors` for per-track failures). The core
+	 * `deemix` package is untouched. DB failures are swallowed so they can never
+	 * break a download.
+	 */
+	recordHistory(downloadObject: any, requestedBy: string) {
+		try {
+			const type: string = downloadObject.type;
+			const parentId = downloadObject.id;
+			const uuid: string = downloadObject.uuid;
+			const bitrate: number = downloadObject.bitrate;
+			// Album name is only reliably known for album jobs (best-effort).
+			const album = type === "album" ? downloadObject.title : null;
+
+			const records: DownloadRecord[] = [];
+
+			for (const file of downloadObject.files || []) {
+				if (!file || !file.data || file.data.id == null) continue;
+				records.push({
+					deezerId: file.data.id,
+					parentId,
+					type,
+					title: file.data.title ?? null,
+					artist: file.data.artist ?? null,
+					album,
+					path: file.path ?? null,
+					status: "success",
+					requestedBy,
+					bitrate,
+					uuid,
+				});
+			}
+
+			for (const err of downloadObject.errors || []) {
+				// Skip post-processing errors; only per-track failures get a row.
+				if (err.type && err.type !== "track") continue;
+				const data = err.data || {};
+				records.push({
+					deezerId: data.id ?? "0",
+					parentId,
+					type,
+					title: data.title ?? null,
+					artist: data.artist ?? null,
+					album,
+					path: null,
+					status: "failed",
+					requestedBy,
+					bitrate,
+					uuid,
+				});
+			}
+
+			addDownloadRecords(records);
+		} catch (e) {
+			logger.error("Failed to record download history");
+			logger.error(e);
+		}
 	}
 
 	cancelDownload(uuid: string) {
@@ -482,6 +594,7 @@ export class DeemixApp {
 					}
 					this.queue[downloadObject.uuid] = downloadObject.getEssentialDict();
 					this.queue[downloadObject.uuid].status = "inQueue";
+					this.queue[downloadObject.uuid].requestedBy = currentItem.requestedBy;
 				} else {
 					this.queue[currentItem.uuid] = currentItem;
 				}

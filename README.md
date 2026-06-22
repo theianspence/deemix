@@ -1,120 +1,185 @@
-# Deemix
+# Deemix (multi-user, proxy-auth fork)
 
-This is the monorepo for the revived Deemix project, originally created by the very talented [RemixDev](https://gitlab.com/RemixDev).
+A self-hosted, **multi-user** Deemix that runs **behind a reverse proxy** for
+authentication and keeps a **global download history**. Forked from
+[bambanah/deemix](https://github.com/bambanah/deemix) (originally by the very
+talented [RemixDev](https://gitlab.com/RemixDev)).
 
-The docker image was heavily inspired by the fantastic work of [Bockiii](https://gitlab.com/Bockiii/deemix-docker).
+What this fork changes:
 
-### Packages in this Repo
+- **Proxy-header authentication** — identity is delegated entirely to a reverse
+  proxy (Authentik / Authelia / Traefik Forward Auth / Caddy). There is no
+  in-app login. Every request must carry a trusted user header or it gets a 401.
+- **One shared Deezer account** — admins configure a single ARL; every user
+  searches and downloads through it.
+- **Global download history** (SQLite) — every track download is recorded with
+  the requesting user, and an "already downloaded / missing" indicator is shown
+  across search and album/playlist views.
+- **Two tiers** — admins (a configurable group) manage the ARL/config and see
+  stats; standard users search, download, view history, and delete their own
+  history entries.
+- **Docker-only**, SQLite-only deployment. The Electron `gui` package has been
+  removed.
 
-- **deezer-sdk**: Wrapper for Deezer's [API](https://developers.deezer.com/api)
-- **deemix**: The brains of the operation
-- **webui**: [Vue.js](https://vuejs.org/) + [Express](https://expressjs.com/) web interface
-- **gui**: Packaged [Electron](https://www.electronjs.org/) app
+### Packages in this repo
 
-<a href='https://ko-fi.com/L3L71IQN1F' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+- **deezer-sdk** — wrapper for Deezer's [API](https://developers.deezer.com/api)
+- **deemix** — the download engine (unchanged by this fork)
+- **webui** — [Vue.js](https://vuejs.org/) + [Express](https://expressjs.com/)
+  web interface (all fork changes live here)
 
-## Downloads
+## Authentication
 
-### Standalone Electron App
+The app trusts identity headers injected by an upstream proxy on **every**
+request and attaches `req.user = { username, groups, name, isAdmin }`. If the
+configured user header is missing, the request is rejected with `401` — the app
+is never meant to be reachable without the proxy in front of it.
 
-[https://github.com/bambanah/deemix/releases](https://github.com/bambanah/deemix/releases)
+Header names and the admin group are configurable:
 
-Note: The app is not signed (because it's crazy expensive), so you'll need to disable the security warnings when running it.
+| Env var             | Purpose                                 | Default         |
+| ------------------- | --------------------------------------- | --------------- |
+| `AUTH_USER_HEADER`  | Header with the authenticated username  | `Remote-User`   |
+| `AUTH_GROUP_HEADER` | Header with comma/pipe-separated groups | `Remote-Groups` |
+| `AUTH_NAME_HEADER`  | Header with the display name (optional) | `Remote-Name`   |
+| `ADMIN_GROUP`       | Group whose members are admins          | `admins`        |
 
-#### For MacOS
+A user is an **admin** when `ADMIN_GROUP` appears in their groups header.
+
+> **Local / no-proxy use:** set `DEEMIX_SINGLE_USER=true` to bypass header auth
+> and run as a single local admin (also how `pnpm dev` and the test suite run).
+> In production keep `DEEMIX_SINGLE_USER=false` so the proxy is enforced.
+
+### User tiers
+
+- **Admin** — manage the shared Deezer ARL and all app config, view system stats
+  (total downloads, per-user counts, download-dir disk usage), delete any
+  history entry.
+- **Standard user** — search the catalog, queue/trigger downloads, view the
+  global history, delete only their own history entries.
+
+## Download history & indicators
+
+Every completed download writes one SQLite row **per track** (Deezer id, title,
+artist, album, type, file path, timestamp, `requested_by`, success/failed) to
+`DEEMIX_DB_PATH` (default `/config/history.db`).
+
+- The **History** page (all users) shows the full global log with the
+  `requested_by` column. You can delete your own rows; admins can delete any.
+  Deleting a row never deletes the file on disk.
+- **"Already downloaded" indicator** — on search results and album/track views a
+  badge shows **Downloaded** (a success row exists _and_ the recorded file is
+  still on disk) or **Missing** (success row exists but the file is gone). The
+  Deezer track id is the cross-reference key, not the filename or tags.
+
+## Deployment (Docker Compose)
 
 ```bash
-xattr -d com.apple.quarantine /Applications/deemix.app
+# from the repo root
+docker compose up -d --build
 ```
 
-Modify path if installed to a different locaiton
+The provided [`docker-compose.yml`](./docker-compose.yml) defines a single
+`deemix` service (no Redis, no Postgres — SQLite only), mounts `./downloads` and
+`./config`, and is **not** published to the host: route your reverse proxy to
+`deemix:6595` on a shared Docker network.
 
-### Docker Image
+### Environment variables
 
-Deemix is also available as a [docker image](https://github.com/bambanah/deemix/pkgs/container/deemix).
+| Variable             | Description                        | Default              |
+| -------------------- | ---------------------------------- | -------------------- |
+| `DEEMIX_SINGLE_USER` | Bypass proxy auth as a local admin | `false`              |
+| `ADMIN_GROUP`        | Group granting admin               | `admins`             |
+| `DEEMIX_DB_PATH`     | SQLite history DB path             | `/config/history.db` |
+| `AUTH_USER_HEADER`   | Username header                    | `Remote-User`        |
+| `AUTH_GROUP_HEADER`  | Groups header                      | `Remote-Groups`      |
+| `AUTH_NAME_HEADER`   | Display-name header                | `Remote-Name`        |
+| `DEEMIX_MUSIC_DIR`   | Download directory                 | `/downloads`         |
+| `DEEMIX_DATA_DIR`    | Config directory                   | `/config`            |
+| `DEEMIX_SERVER_PORT` | Listen port                        | `6595`               |
+| `PUID` / `PGID`      | UID/GID for downloaded files       | `1000` / `1000`      |
 
-#### Example Usage
+## Reverse proxy examples
 
-```bash
-docker run -d --name Deemix \
-  -v /path/to/music:/downloads \
-  -v /path/to/config:/config \
-  -p 6595:6595 \
-  ghcr.io/bambanah/deemix:latest
+deemix only needs the proxy to (a) authenticate the user and (b) forward the
+identity headers upstream. The defaults match **Authelia** out of the box; other
+providers just need the header names pointed at theirs.
+
+### Authelia (via Traefik forward-auth)
+
+Authelia returns `Remote-User`, `Remote-Groups`, `Remote-Name` — the deemix
+defaults. Configure the Traefik middleware to copy them upstream:
+
+```yaml
+http:
+  middlewares:
+    authelia:
+      forwardAuth:
+        address: "http://authelia:9091/api/authz/forward-auth"
+        authResponseHeaders:
+          - "Remote-User"
+          - "Remote-Groups"
+          - "Remote-Name"
+          - "Remote-Email"
+  routers:
+    deemix:
+      rule: "Host(`deemix.example.com`)"
+      service: deemix
+      middlewares: ["authelia"]
 ```
 
-#### Parameters
+No deemix env changes needed. Put users in a `admins` group (or set
+`ADMIN_GROUP`) to grant admin.
 
-All paremeters are optional - if not specified, the default value will be used.
+### Authentik (Proxy Provider / forward auth)
 
-You'll probably want to at least map the download and config folders, as well as the port.
+Authentik forwards `X-authentik-username`, `X-authentik-groups` (pipe-separated),
+and `X-authentik-name`. Point deemix at them:
 
-| Parameter                               | Description                                               | Default      |
-|-----------------------------------------|-----------------------------------------------------------|--------------|
-| `-v /path/to/music:/downloads`          | Path to the music folder                                  |              |
-| `-v /path/to/config:/config`            | Path to the config folder                                 |              |
-| `-p 6595:6595`                          | Port mapped to the host                                   |              |
-| `-e DEEMIX_SERVER_PORT=6595`            | Port to expose the server on                              | `6595`       |
-| `-e DEEMIX_DATA_DIR=/config`            | Path to the config folder                                 | `/config`    |
-| `-e DEEMIX_MUSIC_DIR=/downloads`        | Path to the music folder                                  | `/downloads` |
-| `-e DEEMIX_HOST=0.0.0.0`                | Host to bind the server to                                | `0.0.0.0`    |
-| `-e DEEMIX_SINGLE_USER=true`            | Enables single user mode                                  | `true`       |
-| `-e PUID=1000`                          | User ID to use for downloaded files                       | `1000`       |
-| `-e PGID=1000`                          | Group ID to use for downloaded files                      | `1000`       |
-| `-e UMASK_SET=022`                      | Set umask                                                 | `022`        |
-| `-e DISABLE_OWNERSHIP_CHECK=true`       | Disable ownership fix on container start globally         |              |
-| `-e DISABLE_OWNERSHIP_CHECK_MUSIC=true` | Disable ownership fix on container start for music files  |              |
-| `-e DISABLE_OWNERSHIP_CHECK_DATA=true`  | Disable ownership fix on container start for config files |              |
+```yaml
+environment:
+  AUTH_USER_HEADER: "X-authentik-username"
+  AUTH_GROUP_HEADER: "X-authentik-groups"
+  AUTH_NAME_HEADER: "X-authentik-name"
+  ADMIN_GROUP: "admins"
+```
 
-## Feature requests
+Create an `admins` group in Authentik and add your admins to it.
 
-Before asking for a feature make sure there isn't already an [open issue](https://github.com/bambanah/deemix/issues).
+### Traefik Forward Auth (Authelia) / Caddy
+
+Any forward-auth provider works as long as it injects a username header (and,
+for admin support, a groups header). For nginx `auth_request`, copy the headers
+with `auth_request_set` + `proxy_set_header`; for Caddy's `forward_auth`, use
+`copy_headers Remote-User Remote-Groups Remote-Name`. Set `AUTH_USER_HEADER` /
+`AUTH_GROUP_HEADER` / `AUTH_NAME_HEADER` to whatever your provider emits.
 
 ## Developing
 
-This repo uses [pnpm](https://pnpm.io/) for package management and [Turborepo](https://turbo.build/repo/docs) for monorepo management.
+This repo uses [pnpm](https://pnpm.io/) and
+[Turborepo](https://turbo.build/repo/docs).
 
-### Dependencies
+```bash
+corepack enable          # enable pnpm
+pnpm install             # install deps (also regenerates the lockfile)
+DEEMIX_SINGLE_USER=true pnpm dev   # dev server on :6595, auth bypassed as admin
+```
 
-- Install Node.js 24.x
-- Enable pnpm:
-  ```bash
-  corepack enable
-  ```
+Useful checks:
 
-### Local Development
+```bash
+pnpm --filter deemix-webui type-check
+pnpm --filter deemix-webui test
+pnpm --filter deemix-webui build
+```
 
-1. Clone the repository
-   ```bash
-   git clone https://github.com/bambanah/deemix.git
-   # - OR -
-   gh repo clone bambanah/deemix
-   ```
-2. Install dependencies
-   ```bash
-   pnpm i
-   ```
-3. Start development server
+> **Native dependency note:** this fork adds `better-sqlite3` for the history DB.
+> It ships prebuilt binaries (fine on Windows/macOS/glibc Linux); on Alpine
+> (musl) the Docker image compiles it using the `python3`/`make`/`g++` already
+> installed in the builder stage.
 
-   ```bash
-   pnpm dev
-   ```
-
-   - This will start the development server on port 6595
-   - It will also watch for changes in dependencies and hot reload the app
-
-### Building the Docker Image
-
-A docker image can be built with the provided Dockerfile.
+### Building the Docker image
 
 ```bash
 docker build -t deemix .
-```
-
-### Packaging the Electron GUI
-
-A distributable GUI app can be built with the following command:
-
-```bash
-pnpm make
 ```

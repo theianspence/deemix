@@ -1,5 +1,6 @@
 import { useAppInfoStore } from "@/stores/appInfo";
 import { useLoginStore } from "@/stores/login";
+import { useUserStore } from "@/stores/user";
 import { fetchData, postToServer } from "@/utils/api-utils";
 import { sendAddToQueue } from "@/utils/downloads";
 import { socket } from "@/utils/socket";
@@ -35,6 +36,10 @@ app.use(i18n);
 app.mount("#app");
 
 async function startApp() {
+	// Resolve the proxy-authenticated identity first so the sidebar user chip and
+	// admin-only navigation render correctly from the first paint.
+	await useUserStore(pinia).ensureLoaded();
+
 	const connectResponse = await fetchData("connect");
 	const spotifyStatus = connectResponse.spotifyEnabled ? "enabled" : "disabled";
 

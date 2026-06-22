@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/middleware/auth.js";
 import type { ApiHandler } from "@/types.js";
 import type { Settings, SpotifySettings } from "deemix";
 
@@ -16,6 +17,6 @@ const handler: ApiHandler["handler"] = (req, res) => {
 	res.send({ result: true });
 };
 
-const apiHandler = { path, handler };
+const apiHandler = { path, handler, middleware: [requireAdmin] };
 
 export default apiHandler;

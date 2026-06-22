@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import BaseLoadingPlaceholder from "@/components/globals/BaseLoadingPlaceholder.vue";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import PreviewControls from "@/components/globals/PreviewControls.vue";
 import ResultsError from "@/components/search/ResultsError.vue";
 import { formatTitle } from "@/data/search";
+import { useDownloadStatus } from "@/use/download-status";
 import { emitter } from "@/utils/emitter";
 import { convertDuration } from "@/utils/utils";
+import { watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 interface Props {
@@ -20,6 +23,17 @@ interface Props {
 const { viewInfo, itemsToShow = 6, wantHeaders = false } = defineProps<Props>();
 
 const { t } = useI18n();
+
+const { getStatus, loadStatuses } = useDownloadStatus();
+watch(
+	() => viewInfo?.data,
+	(data) => {
+		if (data && data.length) {
+			loadStatuses(data.slice(0, itemsToShow).map((track) => track.trackID));
+		}
+	},
+	{ immediate: true }
+);
 
 const playPausePreview = (e: MouseEvent) => {
 	emitter.emit("trackPreview:playPausePreview", e);
@@ -72,6 +86,7 @@ const playPausePreview = (e: MouseEvent) => {
 							<div
 								class="table__cell-content table__cell-content--vertical-center break-words"
 							>
+								<DownloadIndicator :status="getStatus(track.trackID)" />
 								<i
 									v-if="track.isTrackExplicit"
 									class="material-icons title-icon"
