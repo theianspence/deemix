@@ -14,6 +14,14 @@ export function getErrorCb(port: number | string | boolean) {
 
 		const bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
 
+		// During tests, every endpoint suite imports the app and tries to listen on
+		// the same port; the resulting EADDRINUSE is harmless (supertest drives the
+		// Express app object directly) and must NOT exit the worker.
+		if (process.env.NODE_ENV === "test") {
+			logger.warn(`${bind} unavailable in test (${error.code}); continuing`);
+			return;
+		}
+
 		// handle specific listen errors with friendly messages
 		switch (error.code) {
 			case "EACCES":

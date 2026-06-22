@@ -210,7 +210,11 @@ export class DeemixApp {
 		url: string[],
 		bitrate: number,
 		retry: boolean = false,
-		requestedBy: string = "unknown"
+		requestedBy: string = "unknown",
+		perms: { track: boolean; playlist: boolean } = {
+			track: false,
+			playlist: false,
+		}
 	) {
 		if (!dz.loggedIn) throw new NotLoggedIn();
 		if (
@@ -275,14 +279,26 @@ export class DeemixApp {
 		const slimmedObjects: Record<string, any>[] = [];
 
 		downloadObjs.forEach((downloadObj) => {
-			// Albums-only: individual tracks cannot be queued. Users download
-			// collections (albums/playlists/artist discographies), not single
-			// tracks. This is the server-side backstop for the UI restriction.
-			if (downloadObj.type === "track") {
+			// Permission gating (server-side backstop for the UI). Albums are open
+			// to everyone; individual tracks and playlists require the caller's
+			// download permissions.
+			const objType = downloadObj.type;
+			if (objType === "track" && !perms.track) {
 				this.listener.send("queueError", {
 					link: downloadObj.title,
-					error: "Only albums can be downloaded, not individual tracks.",
-					errid: "albumsOnly",
+					error: "You don't have permission to download individual tracks.",
+					errid: "tracksNotAllowed",
+				});
+				return;
+			}
+			if (
+				(objType === "playlist" || objType === "spotify_playlist") &&
+				!perms.playlist
+			) {
+				this.listener.send("queueError", {
+					link: downloadObj.title,
+					error: "You don't have permission to download playlists.",
+					errid: "playlistsNotAllowed",
 				});
 				return;
 			}

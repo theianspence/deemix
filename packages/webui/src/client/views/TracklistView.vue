@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { isEmpty } from "lodash-es";
 import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { sendAddToQueue } from "@/utils/downloads";
 import { useDownloadStatus } from "@/use/download-status";
 import { convertDuration } from "@/utils/utils";
 import { emitter } from "@/utils/emitter";
 import { useI18n } from "vue-i18n";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
 
 const { getStatus, loadStatuses } = useDownloadStatus();
 function loadTrackStatuses(tracks) {
@@ -28,6 +31,12 @@ const image = ref("");
 const type = ref("empty");
 const link = ref("");
 const body = ref([]);
+
+// Albums download for everyone; playlists (and spotify playlists) require the
+// caller's playlist-download permission.
+const canDownloadThis = computed(
+	() => type.value === "album" || userStore.canDownloadPlaylists
+);
 
 function playPausePreview(e) {
 	emitter.emit("trackPreview:playPausePreview", e);
@@ -339,6 +348,7 @@ onMounted(() => {
 		>
 		<footer class="bg-background-main">
 			<button
+				v-if="canDownloadThis"
 				:data-link="link"
 				class="btn btn-primary flex items-center"
 				@click.stop="addToQueue"
@@ -349,6 +359,9 @@ onMounted(() => {
 					})}`
 				}}<i class="material-icons ml-2">file_download</i>
 			</button>
+			<span v-else class="opacity-60">
+				{{ t("tracklist.playlistDownloadDisabled") }}
+			</span>
 		</footer>
 	</div>
 </template>

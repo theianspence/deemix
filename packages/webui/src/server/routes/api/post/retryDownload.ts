@@ -35,7 +35,11 @@ const handler: ApiHandler["handler"] = async (req, res) => {
 			[url],
 			bitrate,
 			true,
-			req.user?.username ?? "unknown"
+			req.user?.username,
+			{
+				track: !!req.user?.canDownloadTracks,
+				playlist: !!req.user?.canDownloadPlaylists,
+			}
 		);
 	} catch (e: any) {
 		res.send({ result: false, errid: e.name, data: { url, bitrate } });

@@ -9,6 +9,8 @@ const handler: ApiHandler["handler"] = (req, res) => {
 		username: req.user?.username ?? null,
 		name: req.user?.name ?? null,
 		isAdmin: req.user?.isAdmin ?? false,
+		canDownloadTracks: req.user?.canDownloadTracks ?? false,
+		canDownloadPlaylists: req.user?.canDownloadPlaylists ?? false,
 	});
 };
 

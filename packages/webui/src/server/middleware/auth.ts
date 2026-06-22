@@ -10,6 +10,10 @@ export interface AuthUser {
 	groups: string[];
 	name: string;
 	isAdmin: boolean;
+	/** May queue individual track downloads (admins + TRACK_DOWNLOAD_GROUP). */
+	canDownloadTracks: boolean;
+	/** May queue playlist downloads (admins + PLAYLIST_DOWNLOAD_GROUP). */
+	canDownloadPlaylists: boolean;
 }
 
 declare global {
@@ -26,15 +30,39 @@ export interface AuthConfig {
 	groupHeader: string;
 	nameHeader: string;
 	adminGroup: string;
+	/** Group granting individual-track downloads ("" = admins only). */
+	trackGroup: string;
+	/** Group granting playlist downloads ("" = admins only). */
+	playlistGroup: string;
 }
 
-/** Read the configurable header names / admin group from the environment. */
+/** Read the configurable header names / groups from the environment. */
 export function getAuthConfig(): AuthConfig {
 	return {
 		userHeader: process.env.AUTH_USER_HEADER || "Remote-User",
 		groupHeader: process.env.AUTH_GROUP_HEADER || "Remote-Groups",
 		nameHeader: process.env.AUTH_NAME_HEADER || "Remote-Name",
 		adminGroup: process.env.ADMIN_GROUP || "admins",
+		trackGroup: process.env.TRACK_DOWNLOAD_GROUP || "",
+		playlistGroup: process.env.PLAYLIST_DOWNLOAD_GROUP || "",
+	};
+}
+
+/**
+ * Download permissions for a user. Albums are always allowed; individual tracks
+ * and playlists require admin OR membership in the respective configured group.
+ */
+function downloadPermissions(
+	isAdmin: boolean,
+	groups: string[],
+	config: AuthConfig
+): { canDownloadTracks: boolean; canDownloadPlaylists: boolean } {
+	return {
+		canDownloadTracks:
+			isAdmin || (!!config.trackGroup && groups.includes(config.trackGroup)),
+		canDownloadPlaylists:
+			isAdmin ||
+			(!!config.playlistGroup && groups.includes(config.playlistGroup)),
 	};
 }
 
@@ -75,6 +103,8 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
 			groups: [config.adminGroup],
 			name: username,
 			isAdmin: true,
+			canDownloadTracks: true,
+			canDownloadPlaylists: true,
 		};
 		next();
 		return;
@@ -83,22 +113,22 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
 	// Express header lookups are case-insensitive.
 	const username = req.header(config.userHeader);
 	if (!username) {
-		res
-			.status(401)
-			.send({
-				error: "Unauthorized",
-				message: "Missing authentication header",
-			});
+		res.status(401).send({
+			error: "Unauthorized",
+			message: "Missing authentication header",
+		});
 		return;
 	}
 
 	const groups = parseGroups(req.header(config.groupHeader));
+	const isAdmin = groups.includes(config.adminGroup);
 
 	req.user = {
 		username,
 		groups,
 		name: req.header(config.nameHeader) || username,
-		isAdmin: groups.includes(config.adminGroup),
+		isAdmin,
+		...downloadPermissions(isAdmin, groups, config),
 	};
 
 	next();

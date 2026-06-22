@@ -85,7 +85,9 @@ const en = {
 		ids: {
 			invalidURL: "URL not recognized",
 			unsupportedURL: "URL not supported yet",
-			albumsOnly: "Only albums can be downloaded, not individual tracks.",
+			tracksNotAllowed:
+				"You don't have permission to download individual tracks.",
+			playlistsNotAllowed: "You don't have permission to download playlists.",
 			ISRCnotOnDeezer: "Track ISRC is not available on Deezer",
 			notYourPrivatePlaylist: "You can't download others private playlists.",
 			spotifyDisabled: "Spotify Features is not setted up correctly.",
@@ -492,6 +494,8 @@ const en = {
 	},
 	tracklist: {
 		downloadSelection: "Download selection",
+		playlistDownloadDisabled:
+			"Playlist downloads aren't enabled for your account.",
 	},
 	downloadIndicator: {
 		downloaded: "Already downloaded",

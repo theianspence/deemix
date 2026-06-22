@@ -33,6 +33,8 @@ describe("authMiddleware", () => {
 		delete process.env.AUTH_GROUP_HEADER;
 		delete process.env.AUTH_NAME_HEADER;
 		delete process.env.ADMIN_GROUP;
+		delete process.env.TRACK_DOWNLOAD_GROUP;
+		delete process.env.PLAYLIST_DOWNLOAD_GROUP;
 	});
 
 	afterEach(() => {
@@ -77,6 +79,37 @@ describe("authMiddleware", () => {
 		authMiddleware(req, res, () => {});
 		expect(req.user.isAdmin).toBe(false);
 		expect(req.user.name).toBe("bob"); // falls back to username
+	});
+
+	test("admins may download tracks and playlists", () => {
+		const { req, res } = mockReqRes({
+			"remote-user": "alice",
+			"remote-groups": "admins",
+		});
+		authMiddleware(req, res, () => {});
+		expect(req.user.canDownloadTracks).toBe(true);
+		expect(req.user.canDownloadPlaylists).toBe(true);
+	});
+
+	test("standard users default to albums only", () => {
+		const { req, res } = mockReqRes({
+			"remote-user": "bob",
+			"remote-groups": "users",
+		});
+		authMiddleware(req, res, () => {});
+		expect(req.user.canDownloadTracks).toBe(false);
+		expect(req.user.canDownloadPlaylists).toBe(false);
+	});
+
+	test("configured groups grant per-type download permission", () => {
+		process.env.TRACK_DOWNLOAD_GROUP = "dj";
+		const { req, res } = mockReqRes({
+			"remote-user": "bob",
+			"remote-groups": "users, dj",
+		});
+		authMiddleware(req, res, () => {});
+		expect(req.user.canDownloadTracks).toBe(true);
+		expect(req.user.canDownloadPlaylists).toBe(false); // no playlist group
 	});
 
 	test("single-user bypass injects a local admin", () => {

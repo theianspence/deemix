@@ -4,6 +4,8 @@ import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import PreviewControls from "@/components/globals/PreviewControls.vue";
 import ResultsError from "@/components/search/ResultsError.vue";
 import { formatTitle } from "@/data/search";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { useDownloadStatus } from "@/use/download-status";
 import { emitter } from "@/utils/emitter";
 import { convertDuration } from "@/utils/utils";
@@ -23,6 +25,7 @@ interface Props {
 const { viewInfo, itemsToShow = 6, wantHeaders = false } = defineProps<Props>();
 
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
 
 const { getStatus, loadStatuses } = useDownloadStatus();
 watch(
@@ -61,6 +64,11 @@ const playPausePreview = (e: MouseEvent) => {
 						<th class="h-12 pb-3">
 							<i class="material-icons">timer</i>
 						</th>
+						<th
+							v-if="userStore.canDownloadTracks"
+							class="h-12 pb-3"
+							style="width: 3.5rem"
+						></th>
 					</tr>
 				</thead>
 
@@ -129,6 +137,21 @@ const playPausePreview = (e: MouseEvent) => {
 
 						<td class="table__cell table__cell--small table__cell--center">
 							{{ convertDuration(track.trackDuration) }}
+						</td>
+
+						<td
+							v-if="userStore.canDownloadTracks"
+							class="table__cell--center group cursor-pointer"
+							:data-link="track.trackLink"
+							aria-label="download"
+							@click.stop="$emit('add-to-queue', $event)"
+						>
+							<i
+								class="material-icons group-hover:text-primary transition-colors duration-150 ease-in-out"
+								:title="t('globals.download_hint')"
+							>
+								get_app
+							</i>
 						</td>
 					</tr>
 				</tbody>

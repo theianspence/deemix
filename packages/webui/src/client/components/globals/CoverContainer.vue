@@ -8,6 +8,8 @@ interface Props {
 	isRounded?: boolean;
 	isCircle?: boolean;
 	link: string;
+	/** Hide the download overlay (e.g. when the user lacks permission). */
+	showDownload?: boolean;
 }
 
 defineProps<Props>();
@@ -23,6 +25,7 @@ defineProps<Props>();
 		/>
 
 		<button
+			v-if="showDownload !== false"
 			role="button"
 			aria-label="download"
 			:data-link="link"

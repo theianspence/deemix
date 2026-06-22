@@ -13,6 +13,11 @@ services:
       AUTH_USER_HEADER: "Remote-User"
       AUTH_GROUP_HEADER: "Remote-Groups"
       AUTH_NAME_HEADER: "Remote-Name"
+      # --- Download permissions ---
+      # Everyone can download albums. Individual tracks and playlists are limited
+      # to admins, plus anyone in these optional groups. Unset => admins only.
+      # TRACK_DOWNLOAD_GROUP: "music-power-users"
+      # PLAYLIST_DOWNLOAD_GROUP: "music-power-users"
       # --- History database (SQLite only — no Redis, no Postgres) ---
       DEEMIX_DB_PATH: "/config/history.db"
     volumes:
