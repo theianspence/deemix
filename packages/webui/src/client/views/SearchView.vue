@@ -14,6 +14,8 @@ import {
 	formatSingleTrack,
 } from "@/data/search";
 import { standardizeData } from "@/data/standardize";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { useMainSearch } from "@/use/main-search";
 import { useSearch } from "@/use/search";
 import { sendAddToQueue } from "@/utils/downloads";
@@ -22,6 +24,8 @@ import { computed, onMounted, reactive, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { markRaw } from "vue";
+
+const userStore = useUserStore(pinia);
 
 const resetObj = { data: [], next: 0, total: 0, hasLoaded: false };
 
@@ -131,6 +135,12 @@ const isMainSearchCached = computed(
 );
 const isNewSearch = computed(
 	() => cachedSearchedTerm.value !== searchedTerm.value
+);
+// Hide the Playlists tab from users who can't download playlists.
+const visibleTabs = computed(() =>
+	state.tabs.filter(
+		(tab) => tab.searchType !== "playlist" || userStore.canDownloadPlaylists
+	)
 );
 const loadedTabs = computed(() => {
 	const tabsLoaded = [];
@@ -301,7 +311,7 @@ state.currentTab = state.tabs.find((tab) => tab.searchType === "all");
 		<div v-show="!isQueryEmpty && !isSearching">
 			<BaseTabs>
 				<BaseTab
-					v-for="tab in state.tabs"
+					v-for="tab in visibleTabs"
 					:key="tab.name"
 					:class="{ active: state.currentTab.name === tab.name }"
 					@click="changeSearchTab(tab.searchType)"

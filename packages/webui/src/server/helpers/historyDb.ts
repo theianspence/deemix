@@ -458,10 +458,30 @@ export function getAlbumTracks(
 	}));
 }
 
+/** Remove a now-empty directory and its empty parents, never above the music root. */
+function pruneEmptyDirs(startDir: string): void {
+	const root = (process.env.DEEMIX_MUSIC_DIR || "").replace(/[/\\]+$/, "");
+	let current = startDir;
+	for (let depth = 0; depth < 3; depth++) {
+		const normalized = current.replace(/[/\\]+$/, "");
+		const parent = dirname(current);
+		if (!normalized || normalized === root || parent === current) break;
+		try {
+			if (fs.readdirSync(current).length > 0) break;
+			fs.rmdirSync(current);
+		} catch {
+			break;
+		}
+		current = parent;
+	}
+}
+
 /**
  * Delete a whole album/playlist group. Admins remove every row; standard users
- * remove only the rows they requested. Returns whether the group existed and how
- * many rows were removed so the handler can map to 404 / 403 / 200.
+ * remove only the rows they requested. The recorded files are **also deleted
+ * from disk** (and now-empty album folders are pruned). Returns whether the
+ * group existed and how many rows were removed so the handler can map to
+ * 404 / 403 / 200.
  */
 export function deleteAlbum(
 	key: string,
@@ -478,6 +498,22 @@ export function deleteAlbum(
 				.get(key, type) as { c: number }
 		).c > 0;
 
+	// Collect the files we're about to remove (scoped to ownership) before
+	// deleting the rows, so we can unlink them from disk afterwards.
+	const pathRows = (
+		opts.isAdmin
+			? database
+					.prepare(
+						"SELECT path FROM downloads WHERE parent_id = ? AND type = ? AND status = 'success'"
+					)
+					.all(key, type)
+			: database
+					.prepare(
+						"SELECT path FROM downloads WHERE parent_id = ? AND type = ? AND status = 'success' AND requested_by = ?"
+					)
+					.all(key, type, opts.username)
+	) as { path: string | null }[];
+
 	const info = opts.isAdmin
 		? database
 				.prepare("DELETE FROM downloads WHERE parent_id = ? AND type = ?")
@@ -487,6 +523,18 @@ export function deleteAlbum(
 					"DELETE FROM downloads WHERE parent_id = ? AND type = ? AND requested_by = ?"
 				)
 				.run(key, type, opts.username);
+
+	const dirs = new Set<string>();
+	for (const row of pathRows) {
+		if (!row.path) continue;
+		try {
+			fs.unlinkSync(row.path);
+		} catch {
+			// File already gone — fine.
+		}
+		dirs.add(dirname(row.path));
+	}
+	for (const dir of dirs) pruneEmptyDirs(dir);
 
 	return { existed, deleted: info.changes };
 }

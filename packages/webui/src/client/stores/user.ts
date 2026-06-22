@@ -7,6 +7,7 @@ interface UserState {
 	isAdmin: boolean;
 	canDownloadTracks: boolean;
 	canDownloadPlaylists: boolean;
+	canDownloadDiscography: boolean;
 	loaded: boolean;
 }
 
@@ -21,6 +22,7 @@ export const useUserStore = defineStore("user", {
 		isAdmin: false,
 		canDownloadTracks: false,
 		canDownloadPlaylists: false,
+		canDownloadDiscography: false,
 		loaded: false,
 	}),
 	getters: {
@@ -35,6 +37,7 @@ export const useUserStore = defineStore("user", {
 				this.isAdmin = !!me.isAdmin;
 				this.canDownloadTracks = !!me.canDownloadTracks;
 				this.canDownloadPlaylists = !!me.canDownloadPlaylists;
+				this.canDownloadDiscography = !!me.canDownloadDiscography;
 			} catch {
 				// Leave defaults; the app stays usable read-only.
 			} finally {

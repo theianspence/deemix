@@ -11,6 +11,7 @@ const handler: ApiHandler["handler"] = (req, res) => {
 		isAdmin: req.user?.isAdmin ?? false,
 		canDownloadTracks: req.user?.canDownloadTracks ?? false,
 		canDownloadPlaylists: req.user?.canDownloadPlaylists ?? false,
+		canDownloadDiscography: req.user?.canDownloadDiscography ?? false,
 	});
 };
 

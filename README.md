@@ -62,13 +62,16 @@ A user is an **admin** when `ADMIN_GROUP` appears in their groups header.
 
 Downloads are scoped by type:
 
-- **Albums** (and artist discographies) — any authenticated user.
+- **Albums** — any authenticated user.
 - **Individual tracks** — admins, plus members of `TRACK_DOWNLOAD_GROUP`.
 - **Playlists** — admins, plus members of `PLAYLIST_DOWNLOAD_GROUP`.
+- **Whole-artist / discography** — admins, plus members of
+  `DISCOGRAPHY_DOWNLOAD_GROUP`.
 
-With the two groups unset (the default), only admins can download tracks and
-playlists; everyone else is albums-only. The UI hides the download controls a
-user isn't permitted to use, and the server rejects them as a backstop.
+With the groups unset (the default), only admins can download tracks, playlists,
+and discographies; everyone else is albums-only. The UI hides the download
+controls a user isn't permitted to use, and the server rejects them as a
+backstop.
 
 ## Library & indicators
 
@@ -106,20 +109,21 @@ The provided [`docker-compose.yml`](./docker-compose.yml) defines a single
 
 ### Environment variables
 
-| Variable                  | Description                         | Default              |
-| ------------------------- | ----------------------------------- | -------------------- |
-| `DEEMIX_SINGLE_USER`      | Bypass proxy auth as a local admin  | `false`              |
-| `ADMIN_GROUP`             | Group granting admin                | `admins`             |
-| `DEEMIX_DB_PATH`          | SQLite history DB path              | `/config/history.db` |
-| `AUTH_USER_HEADER`        | Username header                     | `Remote-User`        |
-| `AUTH_GROUP_HEADER`       | Groups header                       | `Remote-Groups`      |
-| `AUTH_NAME_HEADER`        | Display-name header                 | `Remote-Name`        |
-| `TRACK_DOWNLOAD_GROUP`    | Group allowed to download tracks    | _(admins only)_      |
-| `PLAYLIST_DOWNLOAD_GROUP` | Group allowed to download playlists | _(admins only)_      |
-| `DEEMIX_MUSIC_DIR`        | Download directory                  | `/downloads`         |
-| `DEEMIX_DATA_DIR`         | Config directory                    | `/config`            |
-| `DEEMIX_SERVER_PORT`      | Listen port                         | `6595`               |
-| `PUID` / `PGID`           | UID/GID for downloaded files        | `1000` / `1000`      |
+| Variable                     | Description                             | Default              |
+| ---------------------------- | --------------------------------------- | -------------------- |
+| `DEEMIX_SINGLE_USER`         | Bypass proxy auth as a local admin      | `false`              |
+| `ADMIN_GROUP`                | Group granting admin                    | `admins`             |
+| `DEEMIX_DB_PATH`             | SQLite history DB path                  | `/config/history.db` |
+| `AUTH_USER_HEADER`           | Username header                         | `Remote-User`        |
+| `AUTH_GROUP_HEADER`          | Groups header                           | `Remote-Groups`      |
+| `AUTH_NAME_HEADER`           | Display-name header                     | `Remote-Name`        |
+| `TRACK_DOWNLOAD_GROUP`       | Group allowed to download tracks        | _(admins only)_      |
+| `PLAYLIST_DOWNLOAD_GROUP`    | Group allowed to download playlists     | _(admins only)_      |
+| `DISCOGRAPHY_DOWNLOAD_GROUP` | Group allowed to download discographies | _(admins only)_      |
+| `DEEMIX_MUSIC_DIR`           | Download directory                      | `/downloads`         |
+| `DEEMIX_DATA_DIR`            | Config directory                        | `/config`            |
+| `DEEMIX_SERVER_PORT`         | Listen port                             | `6595`               |
+| `PUID` / `PGID`              | UID/GID for downloaded files            | `1000` / `1000`      |
 
 ## Reverse proxy examples
 

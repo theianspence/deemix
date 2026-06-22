@@ -211,9 +211,10 @@ export class DeemixApp {
 		bitrate: number,
 		retry: boolean = false,
 		requestedBy: string = "unknown",
-		perms: { track: boolean; playlist: boolean } = {
+		perms: { track: boolean; playlist: boolean; discography: boolean } = {
 			track: false,
 			playlist: false,
+			discography: false,
 		}
 	) {
 		if (!dz.loggedIn) throw new NotLoggedIn();
@@ -238,6 +239,18 @@ export class DeemixApp {
 
 		for (let i = 0; i < url.length; i++) {
 			link = url[i];
+
+			// Whole-artist / discography downloads expand into many albums; gate
+			// them on their own permission before generating anything.
+			if (/\/artist\//i.test(link) && !perms.discography) {
+				this.listener.send("queueError", {
+					link,
+					error: "You don't have permission to download whole artists.",
+					errid: "discographyNotAllowed",
+				});
+				continue;
+			}
+
 			logger.info(`Adding ${link} to queue`);
 			try {
 				const downloadObj = await generateDownloadObject(

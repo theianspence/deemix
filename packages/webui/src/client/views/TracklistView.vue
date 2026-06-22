@@ -41,6 +41,11 @@ const canDownloadThis = computed(
 function playPausePreview(e) {
 	emitter.emit("trackPreview:playPausePreview", e);
 }
+function trackDownloadLink(track) {
+	return type.value === "spotifyPlaylist"
+		? track.uri
+		: `https://www.deezer.com/track/${track.id}`;
+}
 function reset() {
 	title.value = "Loading...";
 	image.value = "";
@@ -193,6 +198,7 @@ onMounted(() => {
 					<th>
 						<i class="material-icons">timer</i>
 					</th>
+					<th v-if="userStore.canDownloadTracks"></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -282,6 +288,20 @@ onMounted(() => {
 							>
 								{{ convertDuration(track.duration) }}
 							</td>
+							<td
+								v-if="userStore.canDownloadTracks"
+								class="table__cell--center group cursor-pointer"
+								:data-link="trackDownloadLink(track)"
+								aria-label="download"
+								@click.stop="addToQueue"
+							>
+								<i
+									class="material-icons group-hover:text-primary transition-colors"
+									:title="t('globals.download_hint')"
+								>
+									get_app
+								</i>
+							</td>
 						</tr>
 						<tr
 							v-else-if="track.type == 'disc_separator'"
@@ -300,7 +320,7 @@ onMounted(() => {
 							<td class="table__cell--center">
 								{{ track.number }}
 							</td>
-							<td colspan="3"></td>
+							<td :colspan="userStore.canDownloadTracks ? 4 : 3"></td>
 						</tr>
 					</template>
 				</template>
@@ -332,6 +352,20 @@ onMounted(() => {
 						<td>{{ track.artists[0].name }}</td>
 						<td>{{ track.album.name }}</td>
 						<td>{{ convertDuration(Math.floor(track.duration_ms / 1000)) }}</td>
+						<td
+							v-if="userStore.canDownloadTracks"
+							class="group cursor-pointer"
+							:data-link="track.uri"
+							aria-label="download"
+							@click.stop="addToQueue"
+						>
+							<i
+								class="material-icons group-hover:text-primary transition-colors"
+								:title="t('globals.download_hint')"
+							>
+								get_app
+							</i>
+						</td>
 					</tr>
 				</template>
 			</tbody>

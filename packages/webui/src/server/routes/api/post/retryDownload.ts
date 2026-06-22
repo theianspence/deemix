@@ -39,6 +39,7 @@ const handler: ApiHandler["handler"] = async (req, res) => {
 			{
 				track: !!req.user?.canDownloadTracks,
 				playlist: !!req.user?.canDownloadPlaylists,
+				discography: !!req.user?.canDownloadDiscography,
 			}
 		);
 	} catch (e: any) {

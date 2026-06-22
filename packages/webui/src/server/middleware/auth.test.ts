@@ -35,6 +35,7 @@ describe("authMiddleware", () => {
 		delete process.env.ADMIN_GROUP;
 		delete process.env.TRACK_DOWNLOAD_GROUP;
 		delete process.env.PLAYLIST_DOWNLOAD_GROUP;
+		delete process.env.DISCOGRAPHY_DOWNLOAD_GROUP;
 	});
 
 	afterEach(() => {
@@ -89,6 +90,7 @@ describe("authMiddleware", () => {
 		authMiddleware(req, res, () => {});
 		expect(req.user.canDownloadTracks).toBe(true);
 		expect(req.user.canDownloadPlaylists).toBe(true);
+		expect(req.user.canDownloadDiscography).toBe(true);
 	});
 
 	test("standard users default to albums only", () => {
@@ -99,6 +101,7 @@ describe("authMiddleware", () => {
 		authMiddleware(req, res, () => {});
 		expect(req.user.canDownloadTracks).toBe(false);
 		expect(req.user.canDownloadPlaylists).toBe(false);
+		expect(req.user.canDownloadDiscography).toBe(false);
 	});
 
 	test("configured groups grant per-type download permission", () => {

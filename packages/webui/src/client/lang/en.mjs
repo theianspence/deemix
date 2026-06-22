@@ -88,6 +88,8 @@ const en = {
 			tracksNotAllowed:
 				"You don't have permission to download individual tracks.",
 			playlistsNotAllowed: "You don't have permission to download playlists.",
+			discographyNotAllowed:
+				"You don't have permission to download whole artists.",
 			ISRCnotOnDeezer: "Track ISRC is not available on Deezer",
 			notYourPrivatePlaylist: "You can't download others private playlists.",
 			spotifyDisabled: "Spotify Features is not setted up correctly.",
@@ -508,11 +510,11 @@ const en = {
 		empty: "Nothing downloaded yet.",
 		trackCount: "{n} tracks",
 		failedCount: "{n} failed",
-		deleteAlbum: "Remove from library",
+		deleteAlbum: "Delete album",
 		deleteConfirm:
-			'Remove "{title}" from the library? This only removes the history entry — the files on disk are kept.',
-		deleted: "Removed from library",
-		deleteFailed: "Couldn't remove",
+			'Delete "{title}" and remove its files from disk? This cannot be undone.',
+		deleted: "Album deleted",
+		deleteFailed: "Couldn't delete",
 		status: {
 			downloaded: "Downloaded",
 			partial: "Partial",

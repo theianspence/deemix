@@ -14,6 +14,8 @@ export interface AuthUser {
 	canDownloadTracks: boolean;
 	/** May queue playlist downloads (admins + PLAYLIST_DOWNLOAD_GROUP). */
 	canDownloadPlaylists: boolean;
+	/** May queue whole-artist / discography downloads (admins + DISCOGRAPHY_DOWNLOAD_GROUP). */
+	canDownloadDiscography: boolean;
 }
 
 declare global {
@@ -34,6 +36,8 @@ export interface AuthConfig {
 	trackGroup: string;
 	/** Group granting playlist downloads ("" = admins only). */
 	playlistGroup: string;
+	/** Group granting whole-artist / discography downloads ("" = admins only). */
+	discographyGroup: string;
 }
 
 /** Read the configurable header names / groups from the environment. */
@@ -45,6 +49,7 @@ export function getAuthConfig(): AuthConfig {
 		adminGroup: process.env.ADMIN_GROUP || "admins",
 		trackGroup: process.env.TRACK_DOWNLOAD_GROUP || "",
 		playlistGroup: process.env.PLAYLIST_DOWNLOAD_GROUP || "",
+		discographyGroup: process.env.DISCOGRAPHY_DOWNLOAD_GROUP || "",
 	};
 }
 
@@ -56,13 +61,20 @@ function downloadPermissions(
 	isAdmin: boolean,
 	groups: string[],
 	config: AuthConfig
-): { canDownloadTracks: boolean; canDownloadPlaylists: boolean } {
+): {
+	canDownloadTracks: boolean;
+	canDownloadPlaylists: boolean;
+	canDownloadDiscography: boolean;
+} {
 	return {
 		canDownloadTracks:
 			isAdmin || (!!config.trackGroup && groups.includes(config.trackGroup)),
 		canDownloadPlaylists:
 			isAdmin ||
 			(!!config.playlistGroup && groups.includes(config.playlistGroup)),
+		canDownloadDiscography:
+			isAdmin ||
+			(!!config.discographyGroup && groups.includes(config.discographyGroup)),
 	};
 }
 
@@ -105,6 +117,7 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
 			isAdmin: true,
 			canDownloadTracks: true,
 			canDownloadPlaylists: true,
+			canDownloadDiscography: true,
 		};
 		next();
 		return;

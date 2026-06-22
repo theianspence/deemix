@@ -89,19 +89,29 @@ const playPausePreview = (e: MouseEvent) => {
 							</span>
 						</td>
 
-						<td class="table__cell table__cell--large">
-							<div
-								class="table__cell-content table__cell-content--vertical-center break-words"
+						<router-link
+							v-slot="{ navigate }"
+							custom
+							:to="{ name: 'Album', params: { id: track.albumID } }"
+						>
+							<td
+								role="link"
+								class="table__cell table__cell--large"
+								@click="navigate"
 							>
-								<DownloadIndicator :status="getStatus(track.trackID)" />
-								<i
-									v-if="track.isTrackExplicit"
-									class="material-icons title-icon"
-									>explicit</i
+								<div
+									class="table__cell-content table__cell-content--vertical-center cursor-pointer break-words hover:underline"
 								>
-								{{ formatTitle(track) }}
-							</div>
-						</td>
+									<DownloadIndicator :status="getStatus(track.trackID)" />
+									<i
+										v-if="track.isTrackExplicit"
+										class="material-icons title-icon"
+										>explicit</i
+									>
+									{{ formatTitle(track) }}
+								</div>
+							</td>
+						</router-link>
 
 						<router-link
 							v-slot="{ navigate }"

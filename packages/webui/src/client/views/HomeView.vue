@@ -3,11 +3,13 @@ import CoverContainer from "@/components/globals/CoverContainer.vue";
 import { getHomeData } from "@/data/home";
 import { pinia } from "@/stores";
 import { useLoginStore } from "@/stores/login";
+import { useUserStore } from "@/stores/user";
 import { sendAddToQueue } from "@/utils/downloads";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 const loginStore = useLoginStore(pinia);
+const userStore = useUserStore(pinia);
 
 const { t } = useI18n();
 
@@ -15,6 +17,8 @@ const playlists = ref([]);
 const albums = ref([]);
 
 const isLoggedIn = computed(() => loginStore.isLoggedIn);
+// Playlists are only useful to users allowed to download them.
+const showPlaylists = computed(() => userStore.canDownloadPlaylists);
 
 function addToQueue(e) {
 	sendAddToQueue(e.currentTarget.dataset.link);
@@ -64,7 +68,7 @@ onMounted(async () => {
 		</section>
 
 		<section
-			v-if="playlists.length"
+			v-if="playlists.length && showPlaylists"
 			class="border-grayscale-500 border-0 border-t border-solid py-6"
 		>
 			<h2 class="mb-6 text-3xl">{{ t("home.sections.popularPlaylists") }}</h2>
