@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import BaseTab from "@/components/globals/BaseTab.vue";
 import BaseTabs from "@/components/globals/BaseTabs.vue";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import { formatArtistData, getArtistData } from "@/data/artist";
+import { useDownloadStatus } from "@/use/download-status";
 import { checkNewRelease } from "@/utils/dates";
 import { sendAddToQueue } from "@/utils/downloads";
 import { orderBy } from "lodash-es";
-import { computed, reactive, ref, unref } from "vue";
+import { computed, reactive, ref, unref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
@@ -97,6 +99,17 @@ const sortedData = computed(() => {
 
 	return orderBy(state.currentRelease, sortKey, state.sortOrder);
 });
+
+const { getStatus, loadStatuses } = useDownloadStatus("albumStatus");
+watch(
+	sortedData,
+	(releases) => {
+		if (releases && releases.length) {
+			loadStatuses(releases.map((release) => release.releaseID));
+		}
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>
@@ -178,7 +191,8 @@ const sortedData = computed(() => {
 								>explicit</i
 							>
 							<div>
-								<span class="hover:text-primary flex">
+								<span class="hover:text-primary flex items-center">
+									<DownloadIndicator :status="getStatus(release.releaseID)" />
 									{{ release.releaseTitle }}
 									<i
 										v-if="checkNewRelease(release.releaseDate)"

@@ -23,6 +23,7 @@ import getHistory from "./getHistory.js";
 import getLibrary from "./getLibrary.js";
 import getLibraryTracks from "./getLibraryTracks.js";
 import downloadStatus from "./downloadStatus.js";
+import albumStatus from "./albumStatus.js";
 import adminStats from "./adminStats.js";
 
 export default [
@@ -51,5 +52,6 @@ export default [
 	getLibrary,
 	getLibraryTracks,
 	downloadStatus,
+	albumStatus,
 	adminStats,
 ];

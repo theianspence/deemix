@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import BaseLoadingPlaceholder from "@/components/globals/BaseLoadingPlaceholder.vue";
 import CoverContainer from "@/components/globals/CoverContainer.vue";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import ResultsError from "@/components/search/ResultsError.vue";
+import { useDownloadStatus } from "@/use/download-status";
+import { watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 interface Props {
@@ -17,6 +20,19 @@ interface Props {
 const { viewInfo, itemsToShow = 6 } = defineProps<Props>();
 
 const { t } = useI18n();
+
+const { getStatus, loadStatuses } = useDownloadStatus("albumStatus");
+watch(
+	() => viewInfo?.data,
+	(data) => {
+		if (data && data.length) {
+			loadStatuses(
+				data.slice(0, itemsToShow).map((release) => release.albumID)
+			);
+		}
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>
@@ -57,6 +73,7 @@ const { t } = useI18n();
 							/>
 
 							<span class="primary-text">
+								<DownloadIndicator :status="getStatus(release.albumID)" />
 								<i
 									v-if="release.isAlbumExplicit"
 									class="material-icons title-icon"

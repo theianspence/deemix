@@ -21,6 +21,14 @@ const { t } = useI18n();
 		<i class="material-icons">check_circle</i>
 	</span>
 	<span
+		v-else-if="status === 'partial'"
+		class="download-indicator download-indicator--partial"
+		:title="t('downloadIndicator.partial')"
+		:aria-label="t('downloadIndicator.partial')"
+	>
+		<i class="material-icons">check_circle</i>
+	</span>
+	<span
 		v-else-if="status === 'missing'"
 		class="download-indicator download-indicator--missing"
 		:title="t('downloadIndicator.missing')"
@@ -44,6 +52,10 @@ const { t } = useI18n();
 
 .download-indicator--downloaded {
 	color: #1db954;
+}
+
+.download-indicator--partial {
+	color: #e0a800;
 }
 
 .download-indicator--missing {

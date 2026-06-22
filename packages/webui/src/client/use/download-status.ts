@@ -1,14 +1,15 @@
 import { fetchData } from "@/utils/api-utils";
 import { ref } from "vue";
 
-export type DownloadState = "downloaded" | "missing" | "none";
+export type DownloadState = "downloaded" | "partial" | "missing" | "none";
 
 /**
- * Resolve the library state of Deezer track ids against the global history DB.
+ * Resolve the library state of Deezer ids against the global history DB.
  * Returns a reactive map plus a loader; call `loadStatuses(ids)` whenever a new
- * list of tracks is rendered (search results, album/playlist tracklists).
+ * list is rendered. Defaults to per-track status (`downloadStatus`); pass
+ * `"albumStatus"` for album-level badges (search results, artist pages).
  */
-export function useDownloadStatus() {
+export function useDownloadStatus(endpoint = "downloadStatus") {
 	const statusMap = ref<Record<string, DownloadState>>({});
 
 	async function loadStatuses(ids: (string | number | null | undefined)[]) {
@@ -18,7 +19,7 @@ export function useDownloadStatus() {
 		if (!unique.length) return;
 
 		try {
-			const result = await fetchData("downloadStatus", {
+			const result = await fetchData(endpoint, {
 				ids: unique.join(","),
 			});
 			statusMap.value = { ...statusMap.value, ...result };

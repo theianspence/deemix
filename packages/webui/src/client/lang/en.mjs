@@ -85,6 +85,7 @@ const en = {
 		ids: {
 			invalidURL: "URL not recognized",
 			unsupportedURL: "URL not supported yet",
+			albumsOnly: "Only albums can be downloaded, not individual tracks.",
 			ISRCnotOnDeezer: "Track ISRC is not available on Deezer",
 			notYourPrivatePlaylist: "You can't download others private playlists.",
 			spotifyDisabled: "Spotify Features is not setted up correctly.",
@@ -494,6 +495,7 @@ const en = {
 	},
 	downloadIndicator: {
 		downloaded: "Already downloaded",
+		partial: "Partially downloaded (some files missing)",
 		missing: "Downloaded file is missing from disk",
 	},
 	library: {

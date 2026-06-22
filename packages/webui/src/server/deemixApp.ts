@@ -275,6 +275,18 @@ export class DeemixApp {
 		const slimmedObjects: Record<string, any>[] = [];
 
 		downloadObjs.forEach((downloadObj) => {
+			// Albums-only: individual tracks cannot be queued. Users download
+			// collections (albums/playlists/artist discographies), not single
+			// tracks. This is the server-side backstop for the UI restriction.
+			if (downloadObj.type === "track") {
+				this.listener.send("queueError", {
+					link: downloadObj.title,
+					error: "Only albums can be downloaded, not individual tracks.",
+					errid: "albumsOnly",
+				});
+				return;
+			}
+
 			// Check if element is already in queue
 			if (Object.keys(this.queue).includes(downloadObj.uuid) && !retry) {
 				this.listener.send("alreadyInQueue", downloadObj.getEssentialDict());

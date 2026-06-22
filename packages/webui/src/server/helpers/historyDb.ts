@@ -38,7 +38,7 @@ export interface HistoryRow {
 	created_at: number;
 }
 
-export type DownloadState = "downloaded" | "missing" | "none";
+export type DownloadState = "downloaded" | "partial" | "missing" | "none";
 
 const SORT_COLUMNS = new Set([
 	"created_at",
@@ -260,6 +260,59 @@ export function getDownloadStatusForTrackIds(
 	for (const [id, paths] of pathsById) {
 		const anyExists = paths.some((p) => fs.existsSync(p));
 		result[id] = anyExists ? "downloaded" : "missing";
+	}
+
+	return result;
+}
+
+/**
+ * Resolve the library state for a set of Deezer **album** ids (for the badge on
+ * album search results and artist pages). An album is "downloaded" when every
+ * recorded file still exists, "partial" when some are gone, "missing" when all
+ * are gone, "none" when it was never downloaded.
+ */
+export function getAlbumStatusForIds(
+	ids: (string | number)[]
+): Record<string, DownloadState> {
+	const result: Record<string, DownloadState> = {};
+	const stringIds = ids.map((id) => String(id));
+	for (const id of stringIds) result[id] = "none";
+
+	if (!stringIds.length) return result;
+
+	const database = getDb();
+	const CHUNK = 500;
+	const pathsById = new Map<string, string[]>();
+
+	for (let i = 0; i < stringIds.length; i += CHUNK) {
+		const chunk = stringIds.slice(i, i + CHUNK);
+		const placeholders = chunk.map(() => "?").join(",");
+		const rows = database
+			.prepare(
+				`SELECT parent_id, path FROM downloads
+				 WHERE status = 'success' AND type = 'album' AND parent_id IN (${placeholders})`
+			)
+			.all(...chunk) as { parent_id: string; path: string | null }[];
+
+		for (const row of rows) {
+			const list = pathsById.get(row.parent_id) ?? [];
+			if (row.path) list.push(row.path);
+			pathsById.set(row.parent_id, list);
+		}
+	}
+
+	for (const [id, paths] of pathsById) {
+		if (!paths.length) {
+			result[id] = "missing";
+			continue;
+		}
+		const present = paths.filter((p) => fs.existsSync(p)).length;
+		result[id] =
+			present === 0
+				? "missing"
+				: present === paths.length
+					? "downloaded"
+					: "partial";
 	}
 
 	return result;

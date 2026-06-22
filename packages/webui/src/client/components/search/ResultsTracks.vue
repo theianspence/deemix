@@ -61,7 +61,6 @@ const playPausePreview = (e: MouseEvent) => {
 						<th class="h-12 pb-3">
 							<i class="material-icons">timer</i>
 						</th>
-						<th class="h-12 pb-3" style="width: 3.5rem"></th>
 					</tr>
 				</thead>
 
@@ -130,20 +129,6 @@ const playPausePreview = (e: MouseEvent) => {
 
 						<td class="table__cell table__cell--small table__cell--center">
 							{{ convertDuration(track.trackDuration) }}
-						</td>
-
-						<td
-							class="table__cell--center group cursor-pointer"
-							:data-link="track.trackLink"
-							aria-label="download"
-							@click.stop="$emit('add-to-queue', $event)"
-						>
-							<i
-								class="material-icons group-hover:text-primary transition-colors duration-150 ease-in-out"
-								:title="t('globals.download_hint')"
-							>
-								get_app
-							</i>
 						</td>
 					</tr>
 				</tbody>

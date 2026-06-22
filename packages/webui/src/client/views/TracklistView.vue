@@ -45,23 +45,6 @@ function reset() {
 function addToQueue(e) {
 	sendAddToQueue(e.currentTarget.dataset.link);
 }
-function toggleAll(e) {
-	body.value.forEach((item) => {
-		if (item.type === "track") {
-			item.selected = e.currentTarget.checked;
-		}
-	});
-}
-function selectedLinks() {
-	const selected = [];
-	if (body.value) {
-		body.value.forEach((item) => {
-			if (item.type === "track" && item.selected)
-				selected.push(type.value === "spotifyPlaylist" ? item.uri : item.link);
-		});
-	}
-	return selected.join(";");
-}
 function showAlbum(data) {
 	reset();
 
@@ -155,9 +138,6 @@ function showSpotifyPlaylist(data) {
 		body.value = playlistTracks;
 	}
 }
-function selectRow(_, track) {
-	track.selected = !track.selected;
-}
 
 onMounted(() => {
 	emitter.on("showAlbum", showAlbum);
@@ -204,19 +184,12 @@ onMounted(() => {
 					<th>
 						<i class="material-icons">timer</i>
 					</th>
-					<th class="table__icon table__cell--center cursor-pointer">
-						<input class="selectAll" type="checkbox" @click="toggleAll" />
-					</th>
 				</tr>
 			</thead>
 			<tbody>
 				<template v-if="type !== 'spotifyPlaylist'">
-					<template v-for="(track, index) in body">
-						<tr
-							v-if="track.type === 'track'"
-							:key="track.id"
-							@click="selectRow(index, track)"
-						>
+					<template v-for="track in body">
+						<tr v-if="track.type === 'track'" :key="track.id">
 							<td class="table__cell--x-small table__cell--center">
 								<div
 									class="table__cell-content table__cell-content--vertical-center"
@@ -300,13 +273,6 @@ onMounted(() => {
 							>
 								{{ convertDuration(track.duration) }}
 							</td>
-							<td class="table__icon table__cell--center">
-								<input
-									v-model="track.selected"
-									class="cursor-pointer"
-									type="checkbox"
-								/>
-							</td>
 						</tr>
 						<tr
 							v-else-if="track.type == 'disc_separator'"
@@ -325,7 +291,7 @@ onMounted(() => {
 							<td class="table__cell--center">
 								{{ track.number }}
 							</td>
-							<td colspan="4"></td>
+							<td colspan="3"></td>
 						</tr>
 					</template>
 				</template>
@@ -357,13 +323,6 @@ onMounted(() => {
 						<td>{{ track.artists[0].name }}</td>
 						<td>{{ track.album.name }}</td>
 						<td>{{ convertDuration(Math.floor(track.duration_ms / 1000)) }}</td>
-						<td>
-							<input
-								v-model="track.selected"
-								class="cursor-pointer"
-								type="checkbox"
-							/>
-						</td>
 					</tr>
 				</template>
 			</tbody>
@@ -381,21 +340,13 @@ onMounted(() => {
 		<footer class="bg-background-main">
 			<button
 				:data-link="link"
-				class="btn btn-primary mr-2"
+				class="btn btn-primary flex items-center"
 				@click.stop="addToQueue"
 			>
 				{{
 					`${t("globals.download", {
 						thing: t(`globals.listTabs.${type}`, 1),
 					})}`
-				}}
-			</button>
-			<button
-				:data-link="selectedLinks()"
-				class="btn btn-primary flex items-center"
-				@click.stop="addToQueue"
-			>
-				{{ t("tracklist.downloadSelection")
 				}}<i class="material-icons ml-2">file_download</i>
 			</button>
 		</footer>

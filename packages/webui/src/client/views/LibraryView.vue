@@ -195,58 +195,61 @@ onMounted(fetchLibrary);
 			</div>
 		</div>
 
-		<!-- Album detail modal -->
-		<div v-if="selected" class="lib-modal" @click.self="closeModal">
-			<div class="lib-modal__panel">
-				<header class="lib-modal__header">
-					<div>
-						<h2 class="text-2xl">{{ selected.title }}</h2>
-						<p class="opacity-70">
-							{{ selected.artist }} ·
-							{{ t("library.trackCount", { n: selected.trackCount }) }} ·
-							{{ selected.requestedBy }}
-						</p>
-					</div>
-					<div class="flex items-center gap-2">
-						<button
-							v-if="canDelete(selected)"
-							class="btn btn-primary"
-							@click="deleteAlbum(selected)"
-						>
-							{{ t("library.deleteAlbum") }}
-						</button>
-						<i class="material-icons lib-modal__close" @click="closeModal"
-							>close</i
-						>
-					</div>
-				</header>
+		<!-- Album detail modal (teleported to body so position:fixed is relative
+		     to the viewport, not a transformed ancestor) -->
+		<Teleport to="body">
+			<div v-if="selected" class="lib-modal" @click.self="closeModal">
+				<div class="lib-modal__panel">
+					<header class="lib-modal__header">
+						<div>
+							<h2 class="text-2xl">{{ selected.title }}</h2>
+							<p class="opacity-70">
+								{{ selected.artist }} ·
+								{{ t("library.trackCount", { n: selected.trackCount }) }} ·
+								{{ selected.requestedBy }}
+							</p>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								v-if="canDelete(selected)"
+								class="btn btn-primary"
+								@click="deleteAlbum(selected)"
+							>
+								{{ t("library.deleteAlbum") }}
+							</button>
+							<i class="material-icons lib-modal__close" @click="closeModal"
+								>close</i
+							>
+						</div>
+					</header>
 
-				<p v-if="tracksLoading" class="opacity-70">…</p>
-				<table v-else class="table w-full">
-					<tbody>
-						<tr v-for="track in tracks" :key="track.id">
-							<td class="lib-track-status">
-								<i
-									class="material-icons"
-									:class="statusClass(trackStatus(track))"
-									:title="t('library.status.' + trackStatus(track))"
-								>
-									{{
-										trackStatus(track) === "downloaded"
-											? "check_circle"
-											: trackStatus(track) === "missing"
-												? "error_outline"
-												: "error"
-									}}
-								</i>
-							</td>
-							<td class="break-words">{{ track.title || "—" }}</td>
-							<td class="break-words opacity-70">{{ track.artist || "" }}</td>
-						</tr>
-					</tbody>
-				</table>
+					<p v-if="tracksLoading" class="opacity-70">…</p>
+					<table v-else class="table w-full">
+						<tbody>
+							<tr v-for="track in tracks" :key="track.id">
+								<td class="lib-track-status">
+									<i
+										class="material-icons"
+										:class="statusClass(trackStatus(track))"
+										:title="t('library.status.' + trackStatus(track))"
+									>
+										{{
+											trackStatus(track) === "downloaded"
+												? "check_circle"
+												: trackStatus(track) === "missing"
+													? "error_outline"
+													: "error"
+										}}
+									</i>
+								</td>
+								<td class="break-words">{{ track.title || "—" }}</td>
+								<td class="break-words opacity-70">{{ track.artist || "" }}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
 			</div>
-		</div>
+		</Teleport>
 	</div>
 </template>
 
@@ -371,20 +374,22 @@ onMounted(fetchLibrary);
 .lib-modal {
 	position: fixed;
 	inset: 0;
-	background: rgba(0, 0, 0, 0.6);
+	background: rgba(0, 0, 0, 0.65);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	z-index: 60;
+	z-index: 1000;
 	padding: 1rem;
 }
 .lib-modal__panel {
-	background: var(--main-background, var(--background-main, #1a1a1a));
+	background: var(--panels-bg, var(--main-background, #1e1e1e));
+	color: var(--foreground, #fff);
 	border-radius: 14px;
 	width: min(640px, 100%);
 	max-height: 85vh;
 	overflow-y: auto;
 	padding: 1.5rem;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .lib-modal__header {
 	display: flex;
