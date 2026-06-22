@@ -302,12 +302,19 @@ onMounted(fetchLibrary);
 	position: absolute;
 	top: 6px;
 	left: 6px;
-	font-size: 0.7rem;
-	font-weight: 600;
-	padding: 2px 7px;
+	font-size: 0.72rem;
+	font-weight: 700;
+	padding: 3px 9px;
 	border-radius: 999px;
 	color: #fff;
 	text-transform: capitalize;
+	line-height: 1;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+/* Amber backgrounds need dark text to be legible. */
+.lib-badge.lib-status--partial,
+.lib-badge.lib-status--missing {
+	color: #111;
 }
 .lib-status--downloaded {
 	color: #1db954;
