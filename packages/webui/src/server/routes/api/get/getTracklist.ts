@@ -91,6 +91,22 @@ const handler: ApiHandler["handler"] = async (req, res) => {
 				}
 			}
 
+			// The public album API's `release_date` is the *digital* (re-)release
+			// date on Deezer, which for reissued mixtapes/albums can be years off
+			// (e.g. 2024 for a 2010 release). Prefer the original release date the
+			// Deezer site shows, which only the gw album page carries.
+			if (list_type === "album" && releaseAPI) {
+				try {
+					const gwAlbum: any = await dz.gw.get_album_page(list_id);
+					const original = gwAlbum?.DATA?.ORIGINAL_RELEASE_DATE;
+					if (original && !original.startsWith("0000")) {
+						releaseAPI.release_date = original;
+					}
+				} catch {
+					/* keep the public release date */
+				}
+			}
+
 			const tracks: any[] = [];
 			const showdiscs =
 				list_type === "album" &&
