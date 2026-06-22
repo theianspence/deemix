@@ -22,7 +22,7 @@ const Search = () => import("@/views/SearchView.vue");
 const Settings = () => import("@/views/SettingsPage.vue");
 const Artist = () => import("@/views/ArtistView.vue");
 const LinkAnalyzer = () => import("@/views/LinkAnalyzer.vue");
-const History = () => import("@/views/HistoryView.vue");
+const Library = () => import("@/views/LibraryView.vue");
 const Admin = () => import("@/views/AdminView.vue");
 
 const routes: RouteRecordRaw[] = [
@@ -109,9 +109,9 @@ const routes: RouteRecordRaw[] = [
 		component: Settings,
 	},
 	{
-		path: "/history",
-		name: "History",
-		component: History,
+		path: "/library",
+		name: "Library",
+		component: Library,
 		meta: {
 			notKeepAlive: true,
 		},

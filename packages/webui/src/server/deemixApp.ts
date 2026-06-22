@@ -437,6 +437,9 @@ export class DeemixApp {
 			const bitrate: number = downloadObject.bitrate;
 			// Album name is only reliably known for album jobs (best-effort).
 			const album = type === "album" ? downloadObject.title : null;
+			// The collection name (album/playlist title) groups tracks in the
+			// Library view, including for playlists and single tracks.
+			const parentTitle: string | null = downloadObject.title ?? null;
 
 			const records: DownloadRecord[] = [];
 
@@ -449,6 +452,7 @@ export class DeemixApp {
 					title: file.data.title ?? null,
 					artist: file.data.artist ?? null,
 					album,
+					parentTitle,
 					path: file.path ?? null,
 					status: "success",
 					requestedBy,
@@ -468,6 +472,7 @@ export class DeemixApp {
 					title: data.title ?? null,
 					artist: data.artist ?? null,
 					album,
+					parentTitle,
 					path: null,
 					status: "failed",
 					requestedBy,

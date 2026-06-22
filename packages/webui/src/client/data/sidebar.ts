@@ -33,10 +33,10 @@ export const mainNavItems: NavItem[] = [
 		label: "sidebar.charts",
 	},
 	{
-		name: "history",
-		routerName: "History",
-		icon: "history",
-		label: "sidebar.history",
+		name: "library",
+		routerName: "Library",
+		icon: "library_music",
+		label: "sidebar.library",
 	},
 	{
 		name: "settings",

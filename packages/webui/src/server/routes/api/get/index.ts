@@ -20,6 +20,8 @@ import spotifyStatus from "./spotifyStatus.js";
 import checkForUpdates from "./checkForUpdates.js";
 import me from "./me.js";
 import getHistory from "./getHistory.js";
+import getLibrary from "./getLibrary.js";
+import getLibraryTracks from "./getLibraryTracks.js";
 import downloadStatus from "./downloadStatus.js";
 import adminStats from "./adminStats.js";
 
@@ -46,6 +48,8 @@ export default [
 	checkForUpdates,
 	me,
 	getHistory,
+	getLibrary,
+	getLibraryTracks,
 	downloadStatus,
 	adminStats,
 ];

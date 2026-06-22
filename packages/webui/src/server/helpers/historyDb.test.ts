@@ -4,10 +4,13 @@ import { join } from "path";
 import {
 	addDownloadRecords,
 	closeDb,
+	deleteAlbum,
 	deleteHistoryEntry,
+	getAlbumTracks,
 	getDownloadStatusForTrackIds,
 	getStats,
 	listHistory,
+	listLibrary,
 } from "./historyDb.js";
 
 let tmpDir: string;
@@ -98,5 +101,71 @@ describe("historyDb", () => {
 		const after = listHistory({ limit: 100 });
 		expect(after.rows.find((r) => r.deezer_id === "111")).toBeUndefined();
 		expect(after.total).toBe(2);
+	});
+});
+
+describe("library grouping", () => {
+	beforeAll(() => {
+		addDownloadRecords([
+			{
+				deezerId: "a1",
+				parentId: "alb1",
+				type: "album",
+				title: "Track One",
+				artist: "The Artist",
+				album: "My Album",
+				parentTitle: "My Album",
+				path: existingFile,
+				status: "success",
+				requestedBy: "alice",
+			},
+			{
+				deezerId: "a2",
+				parentId: "alb1",
+				type: "album",
+				title: "Track Two",
+				artist: "The Artist",
+				album: "My Album",
+				parentTitle: "My Album",
+				path: join(tmpDir, "gone.flac"),
+				status: "success",
+				requestedBy: "alice",
+			},
+		]);
+	});
+
+	test("groups tracks into a single album entry", () => {
+		const album = listLibrary().find(
+			(e) => e.key === "alb1" && e.type === "album"
+		);
+		expect(album).toBeTruthy();
+		expect(album!.title).toBe("My Album");
+		expect(album!.artist).toBe("The Artist");
+		expect(album!.trackCount).toBe(2);
+		expect(album!.presentCount).toBe(1); // one file exists, one missing
+		expect(album!.status).toBe("partial");
+	});
+
+	test("getAlbumTracks returns the album's tracks with file presence", () => {
+		const tracks = getAlbumTracks("alb1", "album");
+		expect(tracks.length).toBe(2);
+		expect(tracks.some((t) => t.fileExists)).toBe(true);
+		expect(tracks.some((t) => !t.fileExists)).toBe(true);
+	});
+
+	test("album delete is ownership-scoped", () => {
+		const asBob = deleteAlbum("alb1", "album", {
+			username: "bob",
+			isAdmin: false,
+		});
+		expect(asBob.existed).toBe(true);
+		expect(asBob.deleted).toBe(0); // bob owns none
+
+		const asAlice = deleteAlbum("alb1", "album", {
+			username: "alice",
+			isAdmin: false,
+		});
+		expect(asAlice.deleted).toBe(2);
+		expect(listLibrary().find((e) => e.key === "alb1")).toBeUndefined();
 	});
 });

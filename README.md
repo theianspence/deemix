@@ -58,19 +58,27 @@ A user is an **admin** when `ADMIN_GROUP` appears in their groups header.
 - **Standard user** — search the catalog, queue/trigger downloads, view the
   global history, delete only their own history entries.
 
-## Download history & indicators
+## Library & indicators
 
 Every completed download writes one SQLite row **per track** (Deezer id, title,
 artist, album, type, file path, timestamp, `requested_by`, success/failed) to
 `DEEMIX_DB_PATH` (default `/config/history.db`).
 
-- The **History** page (all users) shows the full global log with the
-  `requested_by` column. You can delete your own rows; admins can delete any.
-  Deleting a row never deletes the file on disk.
+- The **Library** page (all users) presents those tracks **grouped into albums**
+  (and playlists / singles) — a cover-art grid with an aggregate status
+  (Downloaded / Partial / Missing), track count and requester. Click an album to
+  see its tracks. Management is album-level: you can remove your own albums from
+  the library, admins can remove any. Removing an album only deletes the history
+  rows — the files on disk are kept.
 - **"Already downloaded" indicator** — on search results and album/track views a
   badge shows **Downloaded** (a success row exists _and_ the recorded file is
   still on disk) or **Missing** (success row exists but the file is gone). The
   Deezer track id is the cross-reference key, not the filename or tags.
+
+> The history DB uses SQLite's rollback journal (not WAL) on purpose: `/config`
+> is typically a bind mount, and WAL's shared-memory coordination is unreliable
+> over Docker Desktop bind mounts (a fresh connection can read zero rows). The
+> rollback journal persists reliably on every filesystem.
 
 ## Deployment (Docker Compose)
 
