@@ -253,14 +253,21 @@ export class Downloader {
 			track
 		);
 
-		// Adding tags
-		if (
-			!shouldDownload &&
-			[OverwriteOption.ONLY_TAGS, OverwriteOption.OVERWRITE].includes(
-				this.settings.overwriteFile
-			)
-		) {
-			tagTrack(extension, writepath, track, this.settings.tags);
+		// Adding tags. Always re-tag when the overwrite mode says so, but also
+		// re-tag for DONT_OVERWRITE when we now have synced lyrics to embed —
+		// the file exists but may have been downloaded before GQL sync lyrics
+		// were available.
+		if (!shouldDownload) {
+			const hasSyncLyricsToEmbed =
+				this.settings.tags.syncedLyrics && track.lyrics.syncID3?.length > 0;
+			if (
+				[OverwriteOption.ONLY_TAGS, OverwriteOption.OVERWRITE].includes(
+					this.settings.overwriteFile
+				) ||
+				hasSyncLyricsToEmbed
+			) {
+				tagTrack(extension, writepath, track, this.settings.tags);
+			}
 		}
 
 		if (!shouldDownload) {
@@ -277,12 +284,17 @@ export class Downloader {
 			returnData.data = itemData;
 			returnData.path = String(writepath);
 
-			// The audio file already exists, but still write the .lrc if we now
-			// have synced lyrics and the file isn't there yet (e.g. GQL fallback
-			// produced lyrics on a re-download of a previously lyrics-less track).
+			// Write (or overwrite) the .lrc when we have synced lyrics. Always
+			// write if it doesn't exist yet; also overwrite for ONLY_TAGS /
+			// OVERWRITE so the file stays in sync with the embedded tag.
 			if (this.settings.syncedLyrics && track.lyrics?.sync) {
 				const lrcPath = `${filepath}/${filename}.lrc`;
-				if (!existsSync(lrcPath)) {
+				if (
+					!existsSync(lrcPath) ||
+					[OverwriteOption.ONLY_TAGS, OverwriteOption.OVERWRITE].includes(
+						this.settings.overwriteFile
+					)
+				) {
 					writeFileSync(lrcPath, track.lyrics.sync);
 				}
 			}
