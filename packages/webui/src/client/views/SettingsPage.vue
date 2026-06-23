@@ -493,80 +493,96 @@ function canDownload(bitrate: number) {
 				</h3>
 			</template>
 
-			<div class="settings-container space-x-5">
-				<div class="settings-container__third">
-					<label class="with-checkbox">
-						<input v-model="settings.createPlaylistFolder" type="checkbox" />
-						<span class="checkbox-text">{{
-							t("settings.folders.createPlaylistFolder")
-						}}</span>
-					</label>
-					<div v-if="settings.createPlaylistFolder" class="input-group">
-						<p class="input-group-text">
-							{{ t("settings.folders.playlistNameTemplate") }}
-						</p>
-						<input v-model="settings.playlistNameTemplate" type="text" />
-					</div>
-				</div>
-				<div class="settings-container__third">
-					<label class="with-checkbox">
-						<input v-model="settings.createArtistFolder" type="checkbox" />
-						<span class="checkbox-text">{{
-							t("settings.folders.createArtistFolder")
-						}}</span>
-					</label>
-
-					<div v-if="settings.createArtistFolder" class="input-group">
-						<p class="input-group-text">
-							{{ t("settings.folders.artistNameTemplate") }}
-						</p>
-						<input v-model="settings.artistNameTemplate" type="text" />
-					</div>
-				</div>
-				<div class="settings-container__third">
-					<label class="with-checkbox">
-						<input v-model="settings.createAlbumFolder" type="checkbox" />
-						<span class="checkbox-text">{{
-							t("settings.folders.createAlbumFolder")
-						}}</span>
-					</label>
-
-					<div v-if="settings.createAlbumFolder" class="input-group">
-						<p class="input-group-text">
-							{{ t("settings.folders.albumNameTemplate") }}
-						</p>
-						<input v-model="settings.albumNameTemplate" type="text" />
-					</div>
-				</div>
-			</div>
-
-			<label class="with-checkbox">
-				<input v-model="settings.createCDFolder" type="checkbox" />
-				<span class="checkbox-text">{{
-					t("settings.folders.createCDFolder")
-				}}</span>
-			</label>
-
-			<label class="with-checkbox">
-				<input v-model="settings.createStructurePlaylist" type="checkbox" />
-				<span class="checkbox-text">{{
-					t("settings.folders.createStructurePlaylist")
-				}}</span>
-			</label>
-
-			<label class="with-checkbox">
-				<input v-model="settings.createSingleFolder" type="checkbox" />
-				<span class="checkbox-text">{{
-					t("settings.folders.createSingleFolder")
-				}}</span>
-			</label>
-
 			<label class="with-checkbox">
 				<input v-model="settings.flatPathMode" type="checkbox" />
 				<span class="checkbox-text">{{
 					t("settings.folders.flatPathMode")
 				}}</span>
 			</label>
+
+			<div
+				v-if="settings.flatPathMode"
+				class="input-group"
+				style="margin-top: 12px"
+			>
+				<p class="input-group-text">
+					{{ t("settings.folders.flatPathTemplate") }}
+				</p>
+				<input v-model="settings.flatPathTemplate" type="text" />
+				<p style="opacity: 0.6; font-size: 0.85em; margin-top: 4px">
+					{{ t("settings.folders.flatPathTemplateHint") }}
+				</p>
+			</div>
+
+			<template v-if="!settings.flatPathMode">
+				<div class="settings-container space-x-5" style="margin-top: 12px">
+					<div class="settings-container__third">
+						<label class="with-checkbox">
+							<input v-model="settings.createPlaylistFolder" type="checkbox" />
+							<span class="checkbox-text">{{
+								t("settings.folders.createPlaylistFolder")
+							}}</span>
+						</label>
+						<div v-if="settings.createPlaylistFolder" class="input-group">
+							<p class="input-group-text">
+								{{ t("settings.folders.playlistNameTemplate") }}
+							</p>
+							<input v-model="settings.playlistNameTemplate" type="text" />
+						</div>
+					</div>
+					<div class="settings-container__third">
+						<label class="with-checkbox">
+							<input v-model="settings.createArtistFolder" type="checkbox" />
+							<span class="checkbox-text">{{
+								t("settings.folders.createArtistFolder")
+							}}</span>
+						</label>
+
+						<div v-if="settings.createArtistFolder" class="input-group">
+							<p class="input-group-text">
+								{{ t("settings.folders.artistNameTemplate") }}
+							</p>
+							<input v-model="settings.artistNameTemplate" type="text" />
+						</div>
+					</div>
+					<div class="settings-container__third">
+						<label class="with-checkbox">
+							<input v-model="settings.createAlbumFolder" type="checkbox" />
+							<span class="checkbox-text">{{
+								t("settings.folders.createAlbumFolder")
+							}}</span>
+						</label>
+
+						<div v-if="settings.createAlbumFolder" class="input-group">
+							<p class="input-group-text">
+								{{ t("settings.folders.albumNameTemplate") }}
+							</p>
+							<input v-model="settings.albumNameTemplate" type="text" />
+						</div>
+					</div>
+				</div>
+
+				<label class="with-checkbox">
+					<input v-model="settings.createCDFolder" type="checkbox" />
+					<span class="checkbox-text">{{
+						t("settings.folders.createCDFolder")
+					}}</span>
+				</label>
+
+				<label class="with-checkbox">
+					<input v-model="settings.createStructurePlaylist" type="checkbox" />
+					<span class="checkbox-text">{{
+						t("settings.folders.createStructurePlaylist")
+					}}</span>
+				</label>
+
+				<label class="with-checkbox">
+					<input v-model="settings.createSingleFolder" type="checkbox" />
+					<span class="checkbox-text">{{
+						t("settings.folders.createSingleFolder")
+					}}</span>
+				</label>
+			</template>
 		</BaseAccordion>
 
 		<BaseAccordion class="settings-group">

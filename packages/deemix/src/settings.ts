@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	createStructurePlaylist: false,
 	createSingleFolder: true,
 	flatPathMode: false,
+	flatPathTemplate: "%artist% - %album%/%tracknumber% - %title%",
 	padTracks: true,
 	padSingleDigit: true,
 	paddingSize: 0,
@@ -171,6 +172,7 @@ function check(settings: Settings) {
 		"coverImageTemplate",
 		"artistImageTemplate",
 		"paddingSize",
+		"flatPathTemplate",
 	].forEach((template) => {
 		if (settings[template] === "") {
 			settings[template] = DEFAULT_SETTINGS[template];

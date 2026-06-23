@@ -289,8 +289,10 @@ const en = {
 			createCDFolder: "Create folder for CDs",
 			createStructurePlaylist: "Create folder structure for playlists",
 			createSingleFolder: "Create folder structure for singles",
-			flatPathMode:
-				"Flat path mode — all downloads use artist/album/song structure",
+			flatPathMode: "Flat path mode",
+			flatPathTemplate: "Path template",
+			flatPathTemplateHint:
+				"Use / to separate folders from the filename. Available variables: %artist%, %album%, %title%, %tracknumber%, %year%, %isrc%, %explicit%",
 		},
 		trackTitles: {
 			title: "Track titles",

@@ -122,63 +122,69 @@ export function generatePath(
 	downloadObjectType: DownloadObject["type"],
 	settings: Settings
 ) {
-	// Flat-path mode: everything lands in artist-album/track — no playlist
-	// folders, no artist-only folders — same layout as a full album download.
-	// Achieved by treating every download as if createStructurePlaylist=true and
-	// createPlaylistFolder=false.
-	const effectiveSettings: Settings = settings.flatPathMode
-		? {
-				...settings,
-				createPlaylistFolder: false,
-				createStructurePlaylist: true,
-				createSingleFolder: true,
-			}
-		: settings;
+	// Flat-path mode: the user's template string defines the entire path relative
+	// to the download root. Split on the last '/' — everything before is the
+	// folder, everything after is the filename. No playlist/artist/album folder
+	// logic applies; the template drives the whole layout.
+	if (settings.flatPathMode) {
+		const tpl =
+			settings.flatPathTemplate || "%artist% - %album%/%tracknumber% - %title%";
+		const rendered = generateTrackName(tpl, track, settings);
+		const slash = rendered.lastIndexOf("/");
+		const filename = slash >= 0 ? rendered.slice(slash + 1) : rendered;
+		const folderPart = slash >= 0 ? rendered.slice(0, slash) : "";
+		const filepath =
+			(settings.downloadLocation || ".") + (folderPart ? `/${folderPart}` : "");
+		return {
+			filename,
+			filepath,
+			artistPath: undefined as string,
+			coverPath: filepath,
+			extrasPath: filepath,
+		};
+	}
 
 	let filenameTemplate = "%artist% - %title%";
 	let singleTrack = false;
 	if (downloadObjectType === "track") {
-		filenameTemplate =
-			effectiveSettings.createSingleFolder || effectiveSettings.flatPathMode
-				? effectiveSettings.albumTracknameTemplate
-				: effectiveSettings.tracknameTemplate;
+		filenameTemplate = settings.createSingleFolder
+			? settings.albumTracknameTemplate
+			: settings.tracknameTemplate;
 		singleTrack = true;
 	} else if (downloadObjectType === "album") {
-		filenameTemplate = effectiveSettings.albumTracknameTemplate;
+		filenameTemplate = settings.albumTracknameTemplate;
 	} else {
-		filenameTemplate = effectiveSettings.flatPathMode
-			? effectiveSettings.albumTracknameTemplate
-			: effectiveSettings.playlistTracknameTemplate;
+		filenameTemplate = settings.playlistTracknameTemplate;
 	}
 
-	let filename = generateTrackName(filenameTemplate, track, effectiveSettings);
+	let filename = generateTrackName(filenameTemplate, track, settings);
 
-	let filepath = effectiveSettings.downloadLocation || ".";
+	let filepath = settings.downloadLocation || ".";
 	let artistPath: string, coverPath: string, extrasPath: string;
 
-	if (shouldCreatePlaylistFolder(track, effectiveSettings)) {
-		filepath += `/${generatePlaylistName(track, effectiveSettings)}`;
+	if (shouldCreatePlaylistFolder(track, settings)) {
+		filepath += `/${generatePlaylistName(track, settings)}`;
 	}
 
-	if (track.playlist && !effectiveSettings.tags.savePlaylistAsCompilation) {
+	if (track.playlist && !settings.tags.savePlaylistAsCompilation) {
 		extrasPath = filepath;
 	}
 
-	if (shouldCreateArtistFolder(track, effectiveSettings)) {
+	if (shouldCreateArtistFolder(track, settings)) {
 		filepath += `/${generateArtistName(
-			effectiveSettings.artistNameTemplate,
+			settings.artistNameTemplate,
 			track.album.mainArtist,
-			effectiveSettings,
+			settings,
 			track.album.rootArtist
 		)}`;
 		artistPath = filepath;
 	}
 
-	if (shouldCreateAlbumFolder(track, effectiveSettings, singleTrack)) {
+	if (shouldCreateAlbumFolder(track, settings, singleTrack)) {
 		filepath += `/${generateAlbumName(
-			effectiveSettings.albumNameTemplate,
+			settings.albumNameTemplate,
 			track.album,
-			effectiveSettings,
+			settings,
 			track.playlist
 		)}`;
 		coverPath = filepath;
@@ -186,7 +192,7 @@ export function generatePath(
 
 	if (!extrasPath) extrasPath = filepath;
 
-	if (shouldCreateCDFolder(track, effectiveSettings, singleTrack)) {
+	if (shouldCreateCDFolder(track, settings, singleTrack)) {
 		filepath += `/CD${track.discNumber}`;
 	}
 
