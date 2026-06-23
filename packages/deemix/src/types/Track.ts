@@ -178,6 +178,20 @@ class Track {
 				this.lyrics.parseLyrics(existingTrack.lyrics);
 			}
 
+			// If the legacy API produced no synced lyrics, fall back to the
+			// pipe.deezer.com GraphQL endpoint which has much broader coverage.
+			if (!this.lyrics.sync) {
+				try {
+					const gqlLyrics = await dz.gw.get_track_lyrics_gql(this.id);
+					if (gqlLyrics) {
+						if (this.lyrics.id === "0") this.lyrics.id = String(this.id);
+						this.lyrics.parseLyrics(gqlLyrics);
+					}
+				} catch {
+					/* GQL lyrics also unavailable for this track */
+				}
+			}
+
 			// Parse Album Data
 			this.album = new Album(
 				existingTrack.album.id,
