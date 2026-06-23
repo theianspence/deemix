@@ -1,57 +1,63 @@
 <script setup lang="ts">
 import { pinia } from "@/stores";
+import { useLibraryStore, type LibraryEntry } from "@/stores/library";
 import { useUserStore } from "@/stores/user";
+import { useDownloadStatus } from "@/use/download-status";
 import { fetchData } from "@/utils/api-utils";
+import { sendAddToQueue } from "@/utils/downloads";
 import { toast } from "@/utils/toasts";
-import { onMounted, ref, watch } from "vue";
+import { socket } from "@/utils/socket";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-interface LibraryEntry {
-	key: string;
-	type: string;
+interface TrackRow {
+	deezerId: string;
 	title: string;
 	artist: string;
-	trackCount: number;
-	presentCount: number;
-	failedCount: number;
-	requestedBy: string;
-	owners: string[];
-	createdAt: number;
-	status: "downloaded" | "partial" | "missing" | "failed";
-}
-
-interface TrackRow {
-	id: number;
-	deezer_id: string;
-	title: string | null;
-	artist: string | null;
-	status: string;
+	trackNumber: number;
+	duration: number;
+	explicit: boolean;
+	status: "downloaded" | "missing" | "none";
 	fileExists: boolean;
+	deezerLink: string;
+	dbId: number | null;
+	path: string | null;
 }
 
 const { t } = useI18n();
 const userStore = useUserStore(pinia);
+const libraryStore = useLibraryStore(pinia);
+const { statusMap: trackStatusMap } = useDownloadStatus("downloadStatus");
 
-const entries = ref<LibraryEntry[]>([]);
-const loading = ref(false);
 const search = ref("");
 const failedCovers = ref<Set<string>>(new Set());
+
+const entries = computed(() => libraryStore.entries);
+const loading = computed(() => libraryStore.loading);
+
+const groupedByArtist = computed(() => {
+	const groups: Record<string, LibraryEntry[]> = {};
+	for (const entry of entries.value) {
+		const artist = entry.artist || "Unknown Artist";
+		if (!groups[artist]) groups[artist] = [];
+		groups[artist].push(entry);
+	}
+	return Object.entries(groups).sort(([a], [b]) =>
+		a.localeCompare(b, undefined, { sensitivity: "base" })
+	);
+});
 
 const selected = ref<LibraryEntry | null>(null);
 const tracks = ref<TrackRow[]>([]);
 const tracksLoading = ref(false);
 
-async function fetchLibrary() {
-	loading.value = true;
-	try {
-		const result = await fetchData("library", { search: search.value });
-		entries.value = result.entries ?? [];
-	} catch (e) {
-		console.error(e);
-	} finally {
-		loading.value = false;
-	}
-}
+// Overlay the shared live status map so track icons update as downloads finish.
+const displayTracks = computed(() =>
+	tracks.value.map((t) => ({
+		...t,
+		status: (trackStatusMap.value[t.deezerId] as TrackRow["status"]) ?? t.status,
+	}))
+);
 
 function coverUrl(entry: LibraryEntry): string | null {
 	if (failedCovers.value.has(entry.key)) return null;
@@ -105,9 +111,8 @@ async function deleteAlbum(entry: LibraryEntry) {
 			"DELETE"
 		);
 		if (result?.result) {
-			entries.value = entries.value.filter(
-				(e) => !(e.key === entry.key && e.type === entry.type)
-			);
+			socket.emit("cancelByDeezerID", { id: entry.key, type: entry.type });
+			libraryStore.removeEntry(entry.key, entry.type);
 			if (selected.value?.key === entry.key) closeModal();
 			toast(t("library.deleted"), "delete", true);
 		} else {
@@ -118,18 +123,19 @@ async function deleteAlbum(entry: LibraryEntry) {
 	}
 }
 
-function trackStatus(track: TrackRow) {
-	if (track.status === "failed") return "failed";
-	return track.fileExists ? "downloaded" : "missing";
+function downloadTrack(track: TrackRow) {
+	sendAddToQueue(track.deezerLink);
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 watch(search, () => {
 	clearTimeout(searchTimer);
-	searchTimer = setTimeout(fetchLibrary, 300);
+	searchTimer = setTimeout(() => libraryStore.fetch(search.value), 300);
 });
 
-onMounted(fetchLibrary);
+onMounted(() => {
+	libraryStore.fetch();
+});
 </script>
 
 <template>
@@ -148,51 +154,59 @@ onMounted(fetchLibrary);
 			{{ t("library.empty") }}
 		</p>
 
-		<div v-else class="lib-grid">
-			<div
-				v-for="entry in entries"
-				:key="entry.type + entry.key"
-				class="lib-card"
-				@click="openAlbum(entry)"
+		<div v-else class="lib-artists">
+			<section
+				v-for="[artist, albums] in groupedByArtist"
+				:key="artist"
+				class="lib-artist-section"
 			>
-				<div class="lib-cover">
-					<img
-						v-if="coverUrl(entry)"
-						:src="coverUrl(entry)!"
-						:alt="entry.title"
-						loading="lazy"
-						@error="onCoverError(entry)"
-					/>
-					<i v-else class="material-icons lib-cover__fallback">album</i>
-
-					<span
-						class="lib-badge"
-						:class="statusClass(entry.status)"
-						:title="t('library.status.' + entry.status)"
+				<h2 class="lib-artist-heading">{{ artist }}</h2>
+				<div class="lib-grid">
+					<div
+						v-for="entry in albums"
+						:key="entry.type + entry.key"
+						class="lib-card"
+						@click="openAlbum(entry)"
 					>
-						{{ t("library.status." + entry.status) }}
-					</span>
+						<div class="lib-cover">
+							<img
+								v-if="coverUrl(entry)"
+								:src="coverUrl(entry)!"
+								:alt="entry.title"
+								loading="lazy"
+								@error="onCoverError(entry)"
+							/>
+							<i v-else class="material-icons lib-cover__fallback">album</i>
 
-					<i
-						v-if="canDelete(entry)"
-						class="material-icons lib-delete"
-						:title="t('library.deleteAlbum')"
-						@click.stop="deleteAlbum(entry)"
-					>
-						delete
-					</i>
-				</div>
+							<span
+								class="lib-badge"
+								:class="statusClass(entry.status)"
+								:title="t('library.status.' + entry.status)"
+							>
+								{{ t("library.status." + entry.status) }}
+							</span>
 
-				<div class="lib-title" :title="entry.title">{{ entry.title }}</div>
-				<div class="lib-artist" :title="entry.artist">{{ entry.artist }}</div>
-				<div class="lib-meta">
-					{{ t("library.trackCount", { n: entry.trackCount }) }}
-					<template v-if="entry.failedCount">
-						· {{ t("library.failedCount", { n: entry.failedCount }) }}
-					</template>
+							<i
+								v-if="canDelete(entry)"
+								class="material-icons lib-delete"
+								:title="t('library.deleteAlbum')"
+								@click.stop="deleteAlbum(entry)"
+							>
+								delete
+							</i>
+						</div>
+
+						<div class="lib-title" :title="entry.title">{{ entry.title }}</div>
+						<div class="lib-meta">
+							{{ t("library.trackCount", { n: entry.trackCount }) }}
+							<template v-if="entry.failedCount">
+								· {{ t("library.failedCount", { n: entry.failedCount }) }}
+							</template>
+						</div>
+						<div class="lib-meta lib-meta--sub">{{ entry.requestedBy }}</div>
+					</div>
 				</div>
-				<div class="lib-meta lib-meta--sub">{{ entry.requestedBy }}</div>
-			</div>
+			</section>
 		</div>
 
 		<!-- Album detail modal (teleported to body so position:fixed is relative
@@ -226,24 +240,34 @@ onMounted(fetchLibrary);
 					<p v-if="tracksLoading" class="opacity-70">…</p>
 					<table v-else class="table w-full">
 						<tbody>
-							<tr v-for="track in tracks" :key="track.id">
+							<tr v-for="track in displayTracks" :key="track.deezerId">
 								<td class="lib-track-status">
 									<i
 										class="material-icons"
-										:class="statusClass(trackStatus(track))"
-										:title="t('library.status.' + trackStatus(track))"
+										:class="statusClass(track.status)"
+										:title="t('library.status.' + track.status)"
 									>
 										{{
-											trackStatus(track) === "downloaded"
+											track.status === "downloaded"
 												? "check_circle"
-												: trackStatus(track) === "missing"
+												: track.status === "missing"
 													? "error_outline"
-													: "error"
+													: "radio_button_unchecked"
 										}}
 									</i>
 								</td>
 								<td class="break-words">{{ track.title || "—" }}</td>
 								<td class="break-words opacity-70">{{ track.artist || "" }}</td>
+								<td class="lib-track-download">
+									<i
+										v-if="track.status !== 'downloaded' && userStore.canDownloadTracks"
+										class="material-icons lib-track-dl-btn"
+										title="Download track"
+										@click.stop="downloadTrack(track)"
+									>
+										download
+									</i>
+								</td>
 							</tr>
 						</tbody>
 					</table>
@@ -254,6 +278,25 @@ onMounted(fetchLibrary);
 </template>
 
 <style scoped>
+.lib-artists {
+	display: flex;
+	flex-direction: column;
+	gap: 2.5rem;
+}
+
+.lib-artist-section {
+	/* no extra spacing needed — gap handles it */
+}
+
+.lib-artist-heading {
+	font-size: 1.25rem;
+	font-weight: 700;
+	margin-bottom: 0.75rem;
+	padding-bottom: 0.4rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	letter-spacing: 0.01em;
+}
+
 .lib-search {
 	background: var(--secondary-background);
 	color: var(--foreground);
@@ -364,13 +407,6 @@ onMounted(fetchLibrary);
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
-.lib-artist {
-	opacity: 0.8;
-	font-size: 0.9rem;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
 .lib-meta {
 	opacity: 0.55;
 	font-size: 0.8rem;
@@ -420,5 +456,20 @@ onMounted(fetchLibrary);
 .lib-track-status i {
 	font-size: 1.1rem;
 	vertical-align: middle;
+}
+.lib-track-download {
+	width: 2rem;
+	text-align: right;
+}
+.lib-track-dl-btn {
+	font-size: 1.1rem;
+	vertical-align: middle;
+	cursor: pointer;
+	opacity: 0.4;
+	transition: opacity 0.1s;
+}
+.lib-track-dl-btn:hover {
+	opacity: 1;
+	color: var(--primary-color, #1db954);
 }
 </style>

@@ -524,6 +524,7 @@ const en = {
 			partial: "Partially Downloaded",
 			missing: "Missing",
 			failed: "Failed",
+			none: "Not Downloaded",
 		},
 	},
 	admin: {

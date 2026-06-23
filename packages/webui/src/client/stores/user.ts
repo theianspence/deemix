@@ -25,8 +25,8 @@ export const useUserStore = defineStore("user", {
 		canDownloadTracks: false,
 		canDownloadPlaylists: false,
 		canDownloadDiscography: false,
-		canViewFavorites: true,
-		canViewCharts: true,
+		canViewFavorites: false,
+		canViewCharts: false,
 		loaded: false,
 	}),
 	getters: {
@@ -42,10 +42,10 @@ export const useUserStore = defineStore("user", {
 				this.canDownloadTracks = !!me.canDownloadTracks;
 				this.canDownloadPlaylists = !!me.canDownloadPlaylists;
 				this.canDownloadDiscography = !!me.canDownloadDiscography;
-				this.canViewFavorites = me.canViewFavorites !== false;
-				this.canViewCharts = me.canViewCharts !== false;
+				this.canViewFavorites = !!me.canViewFavorites;
+				this.canViewCharts = !!me.canViewCharts;
 			} catch {
-				// Leave defaults; the app stays usable read-only.
+				// Leave defaults (all false); the server enforces permissions anyway.
 			} finally {
 				this.loaded = true;
 			}

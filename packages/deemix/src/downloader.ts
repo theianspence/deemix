@@ -259,7 +259,7 @@ export class Downloader {
 		// were available.
 		if (!shouldDownload) {
 			const hasSyncLyricsToEmbed =
-				this.settings.tags.syncedLyrics && track.lyrics.syncID3?.length > 0;
+				this.settings.tags.syncedLyrics && (track.lyrics?.syncID3?.length ?? 0) > 0;
 			if (
 				[OverwriteOption.ONLY_TAGS, OverwriteOption.OVERWRITE].includes(
 					this.settings.overwriteFile

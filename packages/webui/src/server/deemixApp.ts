@@ -25,7 +25,7 @@ import {
 import { Deezer, setDeezerCacheDir } from "deezer-sdk";
 import fs from "fs";
 import got, { type Response as GotResponse } from "got";
-import { sep } from "path";
+import { dirname, sep } from "path";
 import { v4 as uuidv4 } from "uuid";
 
 // Constants
@@ -297,12 +297,19 @@ export class DeemixApp {
 			// download permissions.
 			const objType = downloadObj.type;
 			if (objType === "track" && !perms.track) {
-				this.listener.send("queueError", {
-					link: downloadObj.title,
-					error: "You don't have permission to download individual tracks.",
-					errid: "tracksNotAllowed",
-				});
-				return;
+				// 1-track albums ("singles") are converted to type="track" by the
+				// deemix core (generateAlbumItem → generateTrackItem). They carry
+				// single.albumAPI to signal the original request was album-scoped,
+				// so treat them as album downloads (always permitted).
+				const isAlbumSingle = !!(downloadObj as any).single?.albumAPI;
+				if (!isAlbumSingle) {
+					this.listener.send("queueError", {
+						link: downloadObj.title,
+						error: "You don't have permission to download individual tracks.",
+						errid: "tracksNotAllowed",
+					});
+					return;
+				}
 			}
 			if (
 				(objType === "playlist" || objType === "spotify_playlist") &&
@@ -338,6 +345,19 @@ export class DeemixApp {
 			// is available when the history record is written on completion.
 			this.queue[downloadObj.uuid].requestedBy = requestedBy;
 
+			// For individual track downloads, stash the parent album ID so that
+			// cancelByDeezerID can cancel them when the user deletes the album from
+			// the library, and so the frontend can update the album-level badge.
+			let slimmed: Record<string, any> = downloadObj.getSlimmedDict();
+			if (downloadObj.type === "track") {
+				const trackAlbum = (downloadObj as any).single?.trackAPI?.album;
+				if (trackAlbum?.id) {
+					const albumId = String(trackAlbum.id);
+					this.queue[downloadObj.uuid].albumId = albumId;
+					slimmed = { ...slimmed, album: { id: albumId, title: trackAlbum.title ?? "" } };
+				}
+			}
+
 			fs.writeFileSync(
 				configFolder + `queue${sep}${downloadObj.uuid}.json`,
 				JSON.stringify({
@@ -347,7 +367,7 @@ export class DeemixApp {
 				})
 			);
 
-			slimmedObjects.push(downloadObj.getSlimmedDict());
+			slimmedObjects.push(slimmed);
 		});
 		if (slimmedObjects.length === 1)
 			this.listener.send("addedToQueue", slimmedObjects[0]);
@@ -425,6 +445,30 @@ export class DeemixApp {
 			this.listener.send("startDownload", currentUUID);
 			await this.currentJob.start();
 
+			if (downloadObject.isCanceled) {
+				// Delete every file that finished writing before the cancel arrived,
+				// plus any associated .lrc sidecar. Then prune empty directories.
+				const dirsToCheck = new Set<string>();
+				for (const file of downloadObject.files || []) {
+					const p: string = file?.path;
+					if (!p) continue;
+					try { fs.unlinkSync(p); } catch { }
+					try { fs.unlinkSync(p.replace(/\.[^/.]+$/, ".lrc")); } catch { }
+					dirsToCheck.add(dirname(p));
+				}
+				// Cover art is written to the album folder independently of track files.
+				const coverNames = ["cover.jpg", "cover.png", "folder.jpg", "folder.png", "cover.webp"];
+				for (const dir of dirsToCheck) {
+					for (const name of coverNames) {
+						try { fs.unlinkSync(`${dir}/${name}`); } catch { }
+					}
+				}
+				for (const dir of dirsToCheck) {
+					try { fs.rmdirSync(dir); } catch { }           // album folder (if empty)
+					try { fs.rmdirSync(dirname(dir)); } catch { }  // artist folder (if empty)
+				}
+			}
+
 			if (!downloadObject.isCanceled) {
 				// Set status
 				if (
@@ -441,11 +485,17 @@ export class DeemixApp {
 				// Persist per-track history records for this finished job.
 				this.recordHistory(downloadObject, requestedBy);
 
-				const savedObject = {
+				const savedObject: Record<string, any> = {
 					...downloadObject.getSlimmedDict(),
 					status: this.queue[currentUUID].status,
 					requestedBy,
 				};
+				// Preserve albumId for track downloads so cancelByDeezerID can match
+				// them by album when the user deletes the library entry.
+				if (downloadObject.type === "track") {
+					const trackAlbum = (downloadObject as any).single?.trackAPI?.album;
+					if (trackAlbum?.id) savedObject.albumId = String(trackAlbum.id);
+				}
 				// Save queue status
 				this.queue[currentUUID] = savedObject;
 				fs.writeFileSync(
@@ -489,6 +539,12 @@ export class DeemixApp {
 				trackAlbum?.title ?? downloadObject.title ?? null;
 			const albumName: string | null =
 				effectiveType === "album" ? effectiveParentTitle : null;
+			// Total track count of the parent album — used to distinguish a 1-track
+			// single (fully downloaded) from a partially-downloaded multi-track album.
+			const parentNbTracks: number | null =
+				downloadObject.single?.albumAPI?.nb_tracks ??
+				trackAlbum?.nb_tracks ??
+				null;
 
 			const records: DownloadRecord[] = [];
 
@@ -508,6 +564,7 @@ export class DeemixApp {
 					bitrate,
 					uuid,
 					fromSingle: !!trackAlbum,
+					parentNbTracks,
 				});
 			}
 

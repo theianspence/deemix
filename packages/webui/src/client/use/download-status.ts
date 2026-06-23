@@ -3,6 +3,26 @@ import { ref } from "vue";
 
 export type DownloadState = "downloaded" | "partial" | "missing" | "none";
 
+// Module-level maps shared across all component instances so TheDownloadBar
+// can update them directly when a download finishes.
+const albumStatusMap = ref<Record<string, DownloadState>>({});
+const trackStatusMap = ref<Record<string, DownloadState>>({});
+
+/**
+ * Set by TheDownloadBar when a full album download completes. TracklistView
+ * watches this to refresh its per-track indicators without a DB round-trip.
+ */
+export const lastCompletedAlbumId = ref<string | null>(null);
+
+function mapForEndpoint(endpoint: string) {
+	return endpoint === "albumStatus" ? albumStatusMap : trackStatusMap;
+}
+
+/** Called by TheDownloadBar when a queue item finishes. */
+export function markStatusDownloaded(id: string, endpoint: "albumStatus" | "downloadStatus") {
+	mapForEndpoint(endpoint).value[id] = "downloaded";
+}
+
 /**
  * Resolve the library state of Deezer ids against the global history DB.
  * Returns a reactive map plus a loader; call `loadStatuses(ids)` whenever a new
@@ -10,7 +30,7 @@ export type DownloadState = "downloaded" | "partial" | "missing" | "none";
  * `"albumStatus"` for album-level badges (search results, artist pages).
  */
 export function useDownloadStatus(endpoint = "downloadStatus") {
-	const statusMap = ref<Record<string, DownloadState>>({});
+	const statusMap = mapForEndpoint(endpoint);
 
 	async function loadStatuses(ids: (string | number | null | undefined)[]) {
 		const unique = [

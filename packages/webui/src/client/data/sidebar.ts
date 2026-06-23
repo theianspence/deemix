@@ -61,5 +61,6 @@ export const mainNavItems: NavItem[] = [
 		routerName: "About",
 		icon: "info",
 		label: "sidebar.about",
+		adminOnly: true,
 	},
 ];

@@ -2,10 +2,12 @@
 import QueueItem from "@/components/downloads/QueueItem.vue";
 import { pinia } from "@/stores";
 import { useAppInfoStore } from "@/stores/appInfo";
+import { useLibraryStore } from "@/stores/library";
 import { useErrorStore } from "@/stores/errors";
 import { useLoginStore } from "@/stores/login";
 import { fetchData, postToServer } from "@/utils/api-utils";
 import { socket } from "@/utils/socket";
+import { markStatusDownloaded, lastCompletedAlbumId } from "@/use/download-status";
 import { toast } from "@/utils/toasts";
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
@@ -19,6 +21,7 @@ const tabMaxWidth = 500;
 
 const loginStore = useLoginStore(pinia);
 const appInfoStore = useAppInfoStore(pinia);
+const libraryStore = useLibraryStore(pinia);
 const errorStore = useErrorStore(pinia);
 
 const container = useTemplateRef("container");
@@ -47,6 +50,10 @@ const queueCount = computed(
 function toggleMobileDownloads() {
 	appInfoStore.toggleMobileDownloads();
 }
+
+const reversedQueueItems = computed(() =>
+	Object.values(queueList.value).reverse()
+);
 
 const finishedWithoutErrors = computed(() => {
 	const isCompletedWithoutErrors = (el) =>
@@ -234,11 +241,12 @@ function updateQueue(update) {
 
 function removeFromQueue({ uuid }: { uuid: string }) {
 	const index = queue.value.indexOf(uuid);
+	if (index > -1) queue.value.splice(index, 1);
 
-	if (index > -1) {
-		delete queue.value[index];
-		delete queueList.value[uuid];
-	}
+	const completeIndex = queueComplete.value.indexOf(uuid);
+	if (completeIndex > -1) queueComplete.value.splice(completeIndex, 1);
+
+	delete queueList.value[uuid];
 }
 
 function removeAllDownloads(currentItem) {
@@ -323,6 +331,26 @@ function finishDownload({ uuid }: { uuid: string }) {
 	if (!isInQueue) return;
 
 	queueList.value[uuid].status = "download finished";
+	const item = queueList.value[uuid];
+	libraryStore.onDownloadFinished(
+		String(item.id),
+		item.type,
+		item.album?.id ? String(item.album.id) : undefined,
+		item.downloaded ?? 0,
+		item.failed ?? 0,
+		item.size ?? 0,
+		item.album?.title || item.title,
+		item.artist ?? ""
+	);
+	// Update the shared search-result status maps so indicators refresh immediately.
+	if (item.type === "album" || item.type === "playlist") {
+		markStatusDownloaded(String(item.id), "albumStatus");
+		// Signal TracklistView to mark all its visible track rows as downloaded.
+		if (item.type === "album") lastCompletedAlbumId.value = String(item.id);
+	} else if (item.type === "track") {
+		markStatusDownloaded(String(item.id), "downloadStatus");
+		if (item.album?.id) markStatusDownloaded(String(item.album.id), "albumStatus");
+	}
 	toast(
 		t("toasts.finishDownload", { item: queueList.value[uuid].title }),
 		"done"
@@ -462,7 +490,7 @@ onUnmounted(() => {
 		<!-- Mobile queue list -->
 		<div class="h-[calc(60vh-80px)] overflow-y-auto px-4">
 			<QueueItem
-				v-for="item in queueList"
+				v-for="item in reversedQueueItems"
 				:key="item.uuid"
 				:queue-item="item"
 				:show-tags="showTags"
@@ -544,7 +572,7 @@ onUnmounted(() => {
 			:class="{ slim: isSlim }"
 		>
 			<QueueItem
-				v-for="item in queueList"
+				v-for="item in reversedQueueItems"
 				:key="item.uuid"
 				:queue-item="item"
 				:show-tags="showTags"

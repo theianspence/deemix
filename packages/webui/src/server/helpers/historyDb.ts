@@ -20,6 +20,8 @@ export interface DownloadRecord {
 	uuid?: string | null;
 	/** True when this track was downloaded individually (not as part of a full album download). */
 	fromSingle?: boolean;
+	/** Total track count of the parent album at download time (null when unknown). */
+	parentNbTracks?: number | null;
 }
 
 /** A row as stored in / read from the database. */
@@ -39,6 +41,7 @@ export interface HistoryRow {
 	uuid: string | null;
 	created_at: number;
 	from_single: number;
+	parent_nb_tracks: number | null;
 }
 
 export type DownloadState = "downloaded" | "partial" | "missing" | "none";
@@ -113,6 +116,35 @@ export function getDb(): Database.Database {
 			"ALTER TABLE downloads ADD COLUMN from_single INTEGER NOT NULL DEFAULT 0"
 		);
 	}
+	// Migration: parent_nb_tracks stores the total track count of the parent
+	// album at download time, letting listLibrary distinguish a 1-track single
+	// (parent_nb_tracks=1 → downloaded) from a partial album (> 1 → partial).
+	if (!columns.includes("parent_nb_tracks")) {
+		db.exec("ALTER TABLE downloads ADD COLUMN parent_nb_tracks INTEGER");
+	}
+
+	// Migration: enforce one row per (deezer_id, parent_id, type) so that
+	// re-downloading an album replaces stale rows instead of stacking duplicates.
+	// Collapse existing dupes first (keep highest id = latest download), then
+	// create the unique index so future inserts use ON CONFLICT REPLACE.
+	const hasUniqueIdx =
+		(
+			db
+				.prepare(
+					"SELECT name FROM sqlite_master WHERE type='index' AND name='idx_downloads_unique'"
+				)
+				.get() as { name: string } | undefined
+		) != null;
+	if (!hasUniqueIdx) {
+		db.exec(`
+			DELETE FROM downloads WHERE id NOT IN (
+				SELECT MAX(id) FROM downloads
+				GROUP BY deezer_id, COALESCE(parent_id, ''), type
+			);
+			CREATE UNIQUE INDEX idx_downloads_unique
+				ON downloads(deezer_id, COALESCE(parent_id, ''), type);
+		`);
+	}
 
 	return db;
 }
@@ -131,10 +163,10 @@ export function addDownloadRecords(records: DownloadRecord[]): void {
 
 	const database = getDb();
 	const insert = database.prepare(
-		`INSERT INTO downloads
-			(deezer_id, parent_id, type, title, artist, album, parent_title, path, status, requested_by, bitrate, uuid, created_at, from_single)
+		`INSERT OR REPLACE INTO downloads
+			(deezer_id, parent_id, type, title, artist, album, parent_title, path, status, requested_by, bitrate, uuid, created_at, from_single, parent_nb_tracks)
 		 VALUES
-			(@deezer_id, @parent_id, @type, @title, @artist, @album, @parent_title, @path, @status, @requested_by, @bitrate, @uuid, @created_at, @from_single)`
+			(@deezer_id, @parent_id, @type, @title, @artist, @album, @parent_title, @path, @status, @requested_by, @bitrate, @uuid, @created_at, @from_single, @parent_nb_tracks)`
 	);
 
 	const now = Date.now();
@@ -155,6 +187,7 @@ export function addDownloadRecords(records: DownloadRecord[]): void {
 				uuid: r.uuid ?? null,
 				created_at: now,
 				from_single: r.fromSingle ? 1 : 0,
+				parent_nb_tracks: r.parentNbTracks ?? null,
 			});
 		}
 	});
@@ -380,7 +413,7 @@ export function listLibrary(search?: string): LibraryEntry[] {
 	const database = getDb();
 	const rows = database
 		.prepare(
-			`SELECT parent_id, type, title, album, parent_title, artist, path, status, requested_by, created_at, from_single
+			`SELECT parent_id, type, title, album, parent_title, artist, path, status, requested_by, created_at, from_single, parent_nb_tracks
 			 FROM downloads`
 		)
 		.all() as HistoryRow[];
@@ -419,16 +452,16 @@ export function listLibrary(search?: string): LibraryEntry[] {
 			[...list].sort((a, b) => b.created_at - a.created_at)[0]?.requested_by ??
 			owners[0];
 
-		// A group is "partial" when any track was downloaded individually (not as
-		// part of a full album download), because we can't know the album's total
-		// track count without an extra API call. Individual downloads are always
-		// considered incomplete representations of the album.
+		// For individually-downloaded tracks (from_single=1), use parent_nb_tracks
+		// to distinguish a fully-downloaded single (nb_tracks=1) from a partial album.
 		const hasFromSingle = successRows.some((r) => r.from_single === 1);
+		const parentNbTracks = successRows.find((r) => r.parent_nb_tracks != null)?.parent_nb_tracks ?? null;
+		const isFullSingle = hasFromSingle && parentNbTracks === 1;
 
 		let status: LibraryEntry["status"];
 		if (successRows.length === 0) status = "failed";
 		else if (presentCount === 0) status = "missing";
-		else if (hasFromSingle) status = "partial";
+		else if (hasFromSingle && !isFullSingle) status = "partial";
 		else if (presentCount === successRows.length) status = "downloaded";
 		else status = "partial";
 

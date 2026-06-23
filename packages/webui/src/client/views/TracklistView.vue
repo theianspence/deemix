@@ -4,11 +4,11 @@ import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import { pinia } from "@/stores";
 import { useUserStore } from "@/stores/user";
 import { sendAddToQueue } from "@/utils/downloads";
-import { useDownloadStatus } from "@/use/download-status";
+import { useDownloadStatus, markStatusDownloaded, lastCompletedAlbumId } from "@/use/download-status";
 import { convertDuration } from "@/utils/utils";
 import { emitter } from "@/utils/emitter";
 import { useI18n } from "vue-i18n";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 const { t } = useI18n();
 const userStore = useUserStore(pinia);
@@ -31,6 +31,7 @@ const image = ref("");
 const type = ref("empty");
 const link = ref("");
 const body = ref([]);
+const currentAlbumId = ref<string | null>(null);
 
 // Albums download for everyone; playlists (and spotify playlists) require the
 // caller's playlist-download permission.
@@ -75,6 +76,7 @@ function showAlbum(data) {
 	} = data;
 
 	type.value = "album";
+	currentAlbumId.value = String(albumID);
 	link.value = `https://www.deezer.com/album/${albumID}`;
 	title.value = albumTitle;
 	explicit.value = explicit_lyrics;
@@ -152,6 +154,16 @@ function showSpotifyPlaylist(data) {
 		body.value = playlistTracks;
 	}
 }
+
+// When the full album finishes downloading, mark every visible track row as
+// downloaded directly in the shared status map — no DB round-trip needed.
+watch(lastCompletedAlbumId, (completedId) => {
+	if (!completedId || completedId !== currentAlbumId.value) return;
+	const ids = (body.value as any[])
+		.filter((t) => t?.type === "track" && t.id != null)
+		.map((t) => String(t.id));
+	ids.forEach((id) => markStatusDownloaded(id, "downloadStatus"));
+});
 
 onMounted(() => {
 	emitter.on("showAlbum", showAlbum);

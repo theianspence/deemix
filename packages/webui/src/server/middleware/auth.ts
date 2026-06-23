@@ -16,9 +16,9 @@ export interface AuthUser {
 	canDownloadPlaylists: boolean;
 	/** May queue whole-artist / discography downloads (admins + DISCOGRAPHY_DOWNLOAD_GROUP). */
 	canDownloadDiscography: boolean;
-	/** May view the Favorites page (everyone when FAVORITES_GROUP unset, else admins + group). */
+	/** May view the Favorites page (admins-only when FAVORITES_GROUP unset, else admins + group). */
 	canViewFavorites: boolean;
-	/** May view the Charts page (everyone when CHARTS_GROUP unset, else admins + group). */
+	/** May view the Charts page (admins-only when CHARTS_GROUP unset, else admins + group). */
 	canViewCharts: boolean;
 }
 
@@ -42,9 +42,9 @@ export interface AuthConfig {
 	playlistGroup: string;
 	/** Group granting whole-artist / discography downloads ("" = everyone). */
 	discographyGroup: string;
-	/** Group allowed to view Favorites ("" = everyone). */
+	/** Group allowed to view Favorites ("" = admins only). */
 	favoritesGroup: string;
-	/** Group allowed to view Charts ("" = everyone). */
+	/** Group allowed to view Charts ("" = admins only). */
 	chartsGroup: string;
 }
 
@@ -79,22 +79,20 @@ function resolvePermissions(
 	canViewCharts: boolean;
 } {
 	return {
-		// Download permissions: empty group means everyone; non-empty group gates access.
+		// Download permissions: admins always allowed; a non-empty group also grants
+		// access to members of that group. Empty (unset) => admins only.
 		canDownloadTracks:
-			!config.trackGroup || isAdmin || groups.includes(config.trackGroup),
+			isAdmin || (!!config.trackGroup && groups.includes(config.trackGroup)),
 		canDownloadPlaylists:
-			!config.playlistGroup || isAdmin || groups.includes(config.playlistGroup),
+			isAdmin || (!!config.playlistGroup && groups.includes(config.playlistGroup)),
 		canDownloadDiscography:
-			!config.discographyGroup ||
 			isAdmin ||
-			groups.includes(config.discographyGroup),
-		// View permissions: empty group means everyone; non-empty group gates access.
+			(!!config.discographyGroup && groups.includes(config.discographyGroup)),
+		// View permissions: default to admins-only when group env var is unset.
 		canViewFavorites:
-			!config.favoritesGroup ||
-			isAdmin ||
-			groups.includes(config.favoritesGroup),
+			isAdmin || (!!config.favoritesGroup && groups.includes(config.favoritesGroup)),
 		canViewCharts:
-			!config.chartsGroup || isAdmin || groups.includes(config.chartsGroup),
+			isAdmin || (!!config.chartsGroup && groups.includes(config.chartsGroup)),
 	};
 }
 
