@@ -82,6 +82,7 @@ export class GW {
 	api_token: any;
 	private _gqlJwt: string | null = null;
 	private _gqlJwtExpiry: number = 0;
+	private _gqlJwtPending: Promise<string> | null = null;
 
 	constructor(cookieJar, headers) {
 		this.httpHeaders = headers;
@@ -196,6 +197,15 @@ export class GW {
 	private async _getGqlJwt(): Promise<string> {
 		const now = Date.now() / 1000;
 		if (this._gqlJwt && now < this._gqlJwtExpiry - 30) return this._gqlJwt;
+		// Deduplicate concurrent JWT requests: if one is already in-flight, wait for it.
+		if (this._gqlJwtPending) return this._gqlJwtPending;
+		this._gqlJwtPending = this._fetchGqlJwt().finally(
+			() => (this._gqlJwtPending = null)
+		);
+		return this._gqlJwtPending;
+	}
+
+	private async _fetchGqlJwt(): Promise<string> {
 		const raw = (
 			await got
 				.post("https://auth.deezer.com/login/arl", {
