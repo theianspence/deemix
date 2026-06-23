@@ -109,6 +109,9 @@ const routes: RouteRecordRaw[] = [
 		path: "/settings",
 		name: "Settings",
 		component: Settings,
+		meta: {
+			requiresAdmin: true,
+		},
 	},
 	{
 		path: "/library",

@@ -47,6 +47,7 @@ export const mainNavItems: NavItem[] = [
 		routerName: "Settings",
 		icon: "settings",
 		label: "sidebar.settings",
+		adminOnly: true,
 	},
 	{
 		name: "admin",
