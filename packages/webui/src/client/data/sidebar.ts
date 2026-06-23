@@ -5,6 +5,8 @@ export interface NavItem {
 	label: string;
 	/** Only shown to users in the admin group. */
 	adminOnly?: boolean;
+	/** User-store boolean field that must be true for this item to appear. */
+	requiresPermission?: "canViewFavorites" | "canViewCharts";
 }
 
 export const mainNavItems: NavItem[] = [
@@ -25,12 +27,14 @@ export const mainNavItems: NavItem[] = [
 		routerName: "Favorites",
 		icon: "star",
 		label: "sidebar.favorites",
+		requiresPermission: "canViewFavorites",
 	},
 	{
 		name: "charts",
 		routerName: "Charts",
 		icon: "show_chart",
 		label: "sidebar.charts",
+		requiresPermission: "canViewCharts",
 	},
 	{
 		name: "library",

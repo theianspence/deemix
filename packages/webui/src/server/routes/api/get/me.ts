@@ -12,6 +12,8 @@ const handler: ApiHandler["handler"] = (req, res) => {
 		canDownloadTracks: req.user?.canDownloadTracks ?? false,
 		canDownloadPlaylists: req.user?.canDownloadPlaylists ?? false,
 		canDownloadDiscography: req.user?.canDownloadDiscography ?? false,
+		canViewFavorites: req.user?.canViewFavorites ?? true,
+		canViewCharts: req.user?.canViewCharts ?? true,
 	});
 };
 

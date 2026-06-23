@@ -15,7 +15,12 @@ const appInfoStore = useAppInfoStore(pinia);
 const userStore = useUserStore(pinia);
 
 const navItems = computed(() =>
-	mainNavItems.filter((item) => !item.adminOnly || userStore.isAdmin)
+	mainNavItems.filter((item) => {
+		if (item.adminOnly && !userStore.isAdmin) return false;
+		if (item.requiresPermission && !userStore[item.requiresPermission])
+			return false;
+		return true;
+	})
 );
 const displayName = computed(() => userStore.displayName);
 

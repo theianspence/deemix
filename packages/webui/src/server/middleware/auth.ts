@@ -16,6 +16,10 @@ export interface AuthUser {
 	canDownloadPlaylists: boolean;
 	/** May queue whole-artist / discography downloads (admins + DISCOGRAPHY_DOWNLOAD_GROUP). */
 	canDownloadDiscography: boolean;
+	/** May view the Favorites page (everyone when FAVORITES_GROUP unset, else admins + group). */
+	canViewFavorites: boolean;
+	/** May view the Charts page (everyone when CHARTS_GROUP unset, else admins + group). */
+	canViewCharts: boolean;
 }
 
 declare global {
@@ -38,6 +42,10 @@ export interface AuthConfig {
 	playlistGroup: string;
 	/** Group granting whole-artist / discography downloads ("" = admins only). */
 	discographyGroup: string;
+	/** Group allowed to view Favorites ("" = everyone). */
+	favoritesGroup: string;
+	/** Group allowed to view Charts ("" = everyone). */
+	chartsGroup: string;
 }
 
 /** Read the configurable header names / groups from the environment. */
@@ -50,6 +58,8 @@ export function getAuthConfig(): AuthConfig {
 		trackGroup: process.env.TRACK_DOWNLOAD_GROUP || "",
 		playlistGroup: process.env.PLAYLIST_DOWNLOAD_GROUP || "",
 		discographyGroup: process.env.DISCOGRAPHY_DOWNLOAD_GROUP || "",
+		favoritesGroup: process.env.FAVORITES_GROUP || "",
+		chartsGroup: process.env.CHARTS_GROUP || "",
 	};
 }
 
@@ -57,7 +67,7 @@ export function getAuthConfig(): AuthConfig {
  * Download permissions for a user. Albums are always allowed; individual tracks
  * and playlists require admin OR membership in the respective configured group.
  */
-function downloadPermissions(
+function resolvePermissions(
 	isAdmin: boolean,
 	groups: string[],
 	config: AuthConfig
@@ -65,6 +75,8 @@ function downloadPermissions(
 	canDownloadTracks: boolean;
 	canDownloadPlaylists: boolean;
 	canDownloadDiscography: boolean;
+	canViewFavorites: boolean;
+	canViewCharts: boolean;
 } {
 	return {
 		canDownloadTracks:
@@ -75,6 +87,13 @@ function downloadPermissions(
 		canDownloadDiscography:
 			isAdmin ||
 			(!!config.discographyGroup && groups.includes(config.discographyGroup)),
+		// View permissions: empty group means everyone; non-empty group gates access.
+		canViewFavorites:
+			!config.favoritesGroup ||
+			isAdmin ||
+			groups.includes(config.favoritesGroup),
+		canViewCharts:
+			!config.chartsGroup || isAdmin || groups.includes(config.chartsGroup),
 	};
 }
 
@@ -118,6 +137,8 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
 			canDownloadTracks: true,
 			canDownloadPlaylists: true,
 			canDownloadDiscography: true,
+			canViewFavorites: true,
+			canViewCharts: true,
 		};
 		next();
 		return;
@@ -141,7 +162,7 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
 		groups,
 		name: req.header(config.nameHeader) || username,
 		isAdmin,
-		...downloadPermissions(isAdmin, groups, config),
+		...resolvePermissions(isAdmin, groups, config),
 	};
 
 	next();

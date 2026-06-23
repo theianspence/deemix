@@ -68,6 +68,7 @@ const routes: RouteRecordRaw[] = [
 		component: Charts,
 		meta: {
 			notKeepAlive: true,
+			requiresPermission: "canViewCharts",
 		},
 	},
 	{
@@ -76,6 +77,7 @@ const routes: RouteRecordRaw[] = [
 		component: Favorites,
 		meta: {
 			notKeepAlive: true,
+			requiresPermission: "canViewFavorites",
 		},
 	},
 	{
@@ -161,6 +163,17 @@ router.beforeEach(async (to, _, next) => {
 		const userStore = useUserStore(pinia);
 		await userStore.ensureLoaded();
 		if (!userStore.isAdmin) {
+			next({ name: "Home" });
+			return;
+		}
+	}
+
+	// Redirect away from permission-gated views (Favorites, Charts).
+	if (to.meta.requiresPermission) {
+		const userStore = useUserStore(pinia);
+		await userStore.ensureLoaded();
+		const perm = to.meta.requiresPermission as keyof typeof userStore;
+		if (!userStore[perm]) {
 			next({ name: "Home" });
 			return;
 		}

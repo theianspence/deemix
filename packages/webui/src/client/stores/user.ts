@@ -8,6 +8,8 @@ interface UserState {
 	canDownloadTracks: boolean;
 	canDownloadPlaylists: boolean;
 	canDownloadDiscography: boolean;
+	canViewFavorites: boolean;
+	canViewCharts: boolean;
 	loaded: boolean;
 }
 
@@ -23,6 +25,8 @@ export const useUserStore = defineStore("user", {
 		canDownloadTracks: false,
 		canDownloadPlaylists: false,
 		canDownloadDiscography: false,
+		canViewFavorites: true,
+		canViewCharts: true,
 		loaded: false,
 	}),
 	getters: {
@@ -38,6 +42,8 @@ export const useUserStore = defineStore("user", {
 				this.canDownloadTracks = !!me.canDownloadTracks;
 				this.canDownloadPlaylists = !!me.canDownloadPlaylists;
 				this.canDownloadDiscography = !!me.canDownloadDiscography;
+				this.canViewFavorites = me.canViewFavorites !== false;
+				this.canViewCharts = me.canViewCharts !== false;
 			} catch {
 				// Leave defaults; the app stays usable read-only.
 			} finally {

@@ -109,21 +109,23 @@ The provided [`docker-compose.yml`](./docker-compose.yml) defines a single
 
 ### Environment variables
 
-| Variable                     | Description                             | Default              |
-| ---------------------------- | --------------------------------------- | -------------------- |
-| `DEEMIX_SINGLE_USER`         | Bypass proxy auth as a local admin      | `false`              |
-| `ADMIN_GROUP`                | Group granting admin                    | `admins`             |
-| `DEEMIX_DB_PATH`             | SQLite history DB path                  | `/config/history.db` |
-| `AUTH_USER_HEADER`           | Username header                         | `Remote-User`        |
-| `AUTH_GROUP_HEADER`          | Groups header                           | `Remote-Groups`      |
-| `AUTH_NAME_HEADER`           | Display-name header                     | `Remote-Name`        |
-| `TRACK_DOWNLOAD_GROUP`       | Group allowed to download tracks        | _(admins only)_      |
-| `PLAYLIST_DOWNLOAD_GROUP`    | Group allowed to download playlists     | _(admins only)_      |
-| `DISCOGRAPHY_DOWNLOAD_GROUP` | Group allowed to download discographies | _(admins only)_      |
-| `DEEMIX_MUSIC_DIR`           | Download directory                      | `/downloads`         |
-| `DEEMIX_DATA_DIR`            | Config directory                        | `/config`            |
-| `DEEMIX_SERVER_PORT`         | Listen port                             | `6595`               |
-| `PUID` / `PGID`              | UID/GID for downloaded files            | `1000` / `1000`      |
+| Variable                     | Description                              | Default              |
+| ---------------------------- | ---------------------------------------- | -------------------- |
+| `DEEMIX_SINGLE_USER`         | Bypass proxy auth as a local admin       | `false`              |
+| `ADMIN_GROUP`                | Group granting admin                     | `admins`             |
+| `DEEMIX_DB_PATH`             | SQLite history DB path                   | `/config/history.db` |
+| `AUTH_USER_HEADER`           | Username header                          | `Remote-User`        |
+| `AUTH_GROUP_HEADER`          | Groups header                            | `Remote-Groups`      |
+| `AUTH_NAME_HEADER`           | Display-name header                      | `Remote-Name`        |
+| `TRACK_DOWNLOAD_GROUP`       | Group allowed to download tracks         | _(admins only)_      |
+| `PLAYLIST_DOWNLOAD_GROUP`    | Group allowed to download playlists      | _(admins only)_      |
+| `DISCOGRAPHY_DOWNLOAD_GROUP` | Group allowed to download discographies  | _(admins only)_      |
+| `FAVORITES_GROUP`            | Group allowed to view the Favorites page | _(everyone)_         |
+| `CHARTS_GROUP`               | Group allowed to view the Charts page    | _(everyone)_         |
+| `DEEMIX_MUSIC_DIR`           | Download directory                       | `/downloads`         |
+| `DEEMIX_DATA_DIR`            | Config directory                         | `/config`            |
+| `DEEMIX_SERVER_PORT`         | Listen port                              | `6595`               |
+| `PUID` / `PGID`              | UID/GID for downloaded files             | `1000` / `1000`      |
 
 ## Reverse proxy examples
 
