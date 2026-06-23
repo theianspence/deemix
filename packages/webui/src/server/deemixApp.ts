@@ -502,25 +502,8 @@ export class DeemixApp {
 				});
 			}
 
-			for (const err of downloadObject.errors || []) {
-				// Skip post-processing errors; only per-track failures get a row.
-				if (err.type && err.type !== "track") continue;
-				const data = err.data || {};
-				records.push({
-					deezerId: data.id ?? "0",
-					parentId,
-					type,
-					title: data.title ?? null,
-					artist: data.artist ?? null,
-					album,
-					parentTitle,
-					path: null,
-					status: "failed",
-					requestedBy,
-					bitrate,
-					uuid,
-				});
-			}
+			// Deliberately skip error rows: failed tracks are not recorded in the
+			// library. The library represents what is (or was) on disk.
 
 			addDownloadRecords(records);
 		} catch (e) {
