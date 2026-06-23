@@ -47,7 +47,14 @@ function formatArtistReleases(
 				releaseID: getPropertyWithFallback(release, "id"),
 				releaseCover: getPropertyWithFallback(release, "cover_small"),
 				releaseTitle: getPropertyWithFallback(release, "title"),
-				releaseDate: getPropertyWithFallback(release, "release_date"),
+				releaseDate: (() => {
+					const orig = getPropertyWithFallback(
+						release,
+						"original_release_date"
+					);
+					if (orig && !orig.startsWith("0000")) return orig;
+					return getPropertyWithFallback(release, "release_date");
+				})(),
 				releaseTracksNumber: getPropertyWithFallback(release, "nb_tracks"),
 				releaseLink: getPropertyWithFallback(release, "link"),
 				releaseType: getPropertyWithFallback(release, "record_type"),
