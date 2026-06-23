@@ -196,7 +196,7 @@ export class GW {
 	private async _getGqlJwt(): Promise<string> {
 		const now = Date.now() / 1000;
 		if (this._gqlJwt && now < this._gqlJwtExpiry - 30) return this._gqlJwt;
-		const jwt = (
+		const raw = (
 			await got
 				.post("https://auth.deezer.com/login/arl", {
 					searchParams: { jo: "p", rto: "c", i: "c" },
@@ -206,11 +206,25 @@ export class GW {
 				})
 				.text()
 		).trim();
+		console.warn(
+			"[GQL] JWT auth raw response (first 120 chars):",
+			raw.slice(0, 120)
+		);
+		// The endpoint may return a raw JWT string or a JSON envelope.
+		let jwt = raw;
+		if (raw.startsWith("{")) {
+			const parsed = JSON.parse(raw);
+			jwt = parsed.jwt ?? parsed.access_token ?? parsed.token ?? raw;
+		}
 		// Decode the expiry from the JWT payload (second base64url segment).
 		const segment = (jwt.split(".")[1] ?? "")
 			.replace(/-/g, "+")
 			.replace(/_/g, "/");
 		const payload = JSON.parse(Buffer.from(segment, "base64").toString());
+		console.warn(
+			"[GQL] JWT acquired, expires:",
+			new Date(payload.exp * 1000).toISOString()
+		);
 		this._gqlJwt = jwt;
 		this._gqlJwtExpiry = payload.exp;
 		return jwt;
@@ -245,6 +259,10 @@ export class GW {
 			})
 			.json();
 		const lyrics = response?.data?.track?.lyrics;
+		const syncCount = lyrics?.synchronizedLines?.length ?? 0;
+		console.warn(
+			`[GQL] track ${sng_id}: lyrics=${!!lyrics} syncLines=${syncCount}`
+		);
 		if (!lyrics) throw new Error("No GQL lyrics");
 		// Normalise to the legacy song.getLyrics shape so parseLyrics() needs no changes.
 		return {

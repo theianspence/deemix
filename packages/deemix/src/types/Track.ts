@@ -187,8 +187,11 @@ class Track {
 						if (this.lyrics.id === "0") this.lyrics.id = String(this.id);
 						this.lyrics.parseLyrics(gqlLyrics);
 					}
-				} catch {
-					/* GQL lyrics also unavailable for this track */
+				} catch (e) {
+					console.warn(
+						`[GQL] lyrics fallback failed for track ${this.id}:`,
+						e?.message ?? e
+					);
 				}
 			}
 
