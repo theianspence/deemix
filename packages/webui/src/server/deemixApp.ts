@@ -507,6 +507,7 @@ export class DeemixApp {
 					requestedBy,
 					bitrate,
 					uuid,
+					fromSingle: !!trackAlbum,
 				});
 			}
 

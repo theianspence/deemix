@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	createCDFolder: true,
 	createStructurePlaylist: false,
 	createSingleFolder: true,
+	flatPathMode: false,
 	padTracks: true,
 	padSingleDigit: true,
 	paddingSize: 0,

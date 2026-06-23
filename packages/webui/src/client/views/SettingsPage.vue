@@ -560,6 +560,13 @@ function canDownload(bitrate: number) {
 					t("settings.folders.createSingleFolder")
 				}}</span>
 			</label>
+
+			<label class="with-checkbox">
+				<input v-model="settings.flatPathMode" type="checkbox" />
+				<span class="checkbox-text">{{
+					t("settings.folders.flatPathMode")
+				}}</span>
+			</label>
 		</BaseAccordion>
 
 		<BaseAccordion class="settings-group">

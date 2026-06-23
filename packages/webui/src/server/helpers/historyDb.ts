@@ -18,6 +18,8 @@ export interface DownloadRecord {
 	requestedBy: string;
 	bitrate?: number | null;
 	uuid?: string | null;
+	/** True when this track was downloaded individually (not as part of a full album download). */
+	fromSingle?: boolean;
 }
 
 /** A row as stored in / read from the database. */
@@ -36,6 +38,7 @@ export interface HistoryRow {
 	bitrate: number | null;
 	uuid: string | null;
 	created_at: number;
+	from_single: number;
 }
 
 export type DownloadState = "downloaded" | "partial" | "missing" | "none";
@@ -84,21 +87,31 @@ export function getDb(): Database.Database {
 			requested_by TEXT NOT NULL,
 			bitrate INTEGER,
 			uuid TEXT,
-			created_at INTEGER NOT NULL
+			created_at INTEGER NOT NULL,
+			from_single INTEGER NOT NULL DEFAULT 0
 		);
 		CREATE INDEX IF NOT EXISTS idx_downloads_deezer_id ON downloads(deezer_id);
 		CREATE INDEX IF NOT EXISTS idx_downloads_created_at ON downloads(created_at);
 		CREATE INDEX IF NOT EXISTS idx_downloads_parent ON downloads(parent_id, type);
 	`);
 
+	const columns = (
+		db.prepare("PRAGMA table_info(downloads)").all() as { name: string }[]
+	).map((c) => c.name);
+
 	// Migration: parent_title (the album/playlist/collection name) lets the
 	// Library view label groups even for playlists and single tracks. Older DBs
 	// fall back to the per-track `album` column.
-	const hasParentTitle = (
-		db.prepare("PRAGMA table_info(downloads)").all() as { name: string }[]
-	).some((c) => c.name === "parent_title");
-	if (!hasParentTitle) {
+	if (!columns.includes("parent_title")) {
 		db.exec("ALTER TABLE downloads ADD COLUMN parent_title TEXT");
+	}
+	// Migration: from_single marks tracks downloaded individually (not as part
+	// of a full album download) so they show as "Partially Downloaded" in the
+	// Library when fewer than the full album's tracks are recorded.
+	if (!columns.includes("from_single")) {
+		db.exec(
+			"ALTER TABLE downloads ADD COLUMN from_single INTEGER NOT NULL DEFAULT 0"
+		);
 	}
 
 	return db;
@@ -119,9 +132,9 @@ export function addDownloadRecords(records: DownloadRecord[]): void {
 	const database = getDb();
 	const insert = database.prepare(
 		`INSERT INTO downloads
-			(deezer_id, parent_id, type, title, artist, album, parent_title, path, status, requested_by, bitrate, uuid, created_at)
+			(deezer_id, parent_id, type, title, artist, album, parent_title, path, status, requested_by, bitrate, uuid, created_at, from_single)
 		 VALUES
-			(@deezer_id, @parent_id, @type, @title, @artist, @album, @parent_title, @path, @status, @requested_by, @bitrate, @uuid, @created_at)`
+			(@deezer_id, @parent_id, @type, @title, @artist, @album, @parent_title, @path, @status, @requested_by, @bitrate, @uuid, @created_at, @from_single)`
 	);
 
 	const now = Date.now();
@@ -141,6 +154,7 @@ export function addDownloadRecords(records: DownloadRecord[]): void {
 				bitrate: r.bitrate ?? null,
 				uuid: r.uuid ?? null,
 				created_at: now,
+				from_single: r.fromSingle ? 1 : 0,
 			});
 		}
 	});
@@ -366,7 +380,7 @@ export function listLibrary(search?: string): LibraryEntry[] {
 	const database = getDb();
 	const rows = database
 		.prepare(
-			`SELECT parent_id, type, title, album, parent_title, artist, path, status, requested_by, created_at
+			`SELECT parent_id, type, title, album, parent_title, artist, path, status, requested_by, created_at, from_single
 			 FROM downloads`
 		)
 		.all() as HistoryRow[];
@@ -405,10 +419,17 @@ export function listLibrary(search?: string): LibraryEntry[] {
 			[...list].sort((a, b) => b.created_at - a.created_at)[0]?.requested_by ??
 			owners[0];
 
+		// A group is "partial" when any track was downloaded individually (not as
+		// part of a full album download), because we can't know the album's total
+		// track count without an extra API call. Individual downloads are always
+		// considered incomplete representations of the album.
+		const hasFromSingle = successRows.some((r) => r.from_single === 1);
+
 		let status: LibraryEntry["status"];
 		if (successRows.length === 0) status = "failed";
-		else if (presentCount === successRows.length) status = "downloaded";
 		else if (presentCount === 0) status = "missing";
+		else if (hasFromSingle) status = "partial";
+		else if (presentCount === successRows.length) status = "downloaded";
 		else status = "partial";
 
 		entries.push({

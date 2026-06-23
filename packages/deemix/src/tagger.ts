@@ -225,8 +225,13 @@ function tagFLAC(path, track, save) {
 	if (save.explicit)
 		flac.setTag(`ITUNESADVISORY=${track.explicit ? "1" : "0"}`);
 	if (save.replayGain) flac.setTag(`REPLAYGAIN_TRACK_GAIN=${track.replayGain}`);
-	if (save.lyrics && track.lyrics.unsync)
-		flac.setTag(`LYRICS=${track.lyrics.unsync}`);
+	if (save.lyrics) {
+		if (save.syncedLyrics && track.lyrics.sync)
+			flac.setTag(`LYRICS=${track.lyrics.sync}`);
+		else if (track.lyrics.unsync) flac.setTag(`LYRICS=${track.lyrics.unsync}`);
+	}
+	if (save.syncedLyrics && track.lyrics.sync)
+		flac.setTag(`SYNCEDLYRICS=${track.lyrics.sync}`);
 
 	Object.keys(track.contributors).forEach((role) => {
 		if (
