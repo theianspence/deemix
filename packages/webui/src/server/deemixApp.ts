@@ -473,14 +473,22 @@ export class DeemixApp {
 	recordHistory(downloadObject: any, requestedBy: string) {
 		try {
 			const type: string = downloadObject.type;
-			const parentId = downloadObject.id;
 			const uuid: string = downloadObject.uuid;
 			const bitrate: number = downloadObject.bitrate;
-			// Album name is only reliably known for album jobs (best-effort).
-			const album = type === "album" ? downloadObject.title : null;
-			// The collection name (album/playlist title) groups tracks in the
-			// Library view, including for playlists and single tracks.
-			const parentTitle: string | null = downloadObject.title ?? null;
+
+			// Individual track downloads are filed under their album so they appear
+			// alongside full-album downloads in the Library rather than as orphaned
+			// single-track entries.
+			const trackAlbum =
+				type === "track" ? downloadObject.single?.trackAPI?.album : null;
+			const effectiveType = trackAlbum ? "album" : type;
+			const effectiveParentId = trackAlbum
+				? String(trackAlbum.id)
+				: String(downloadObject.id);
+			const effectiveParentTitle: string | null =
+				trackAlbum?.title ?? downloadObject.title ?? null;
+			const albumName: string | null =
+				effectiveType === "album" ? effectiveParentTitle : null;
 
 			const records: DownloadRecord[] = [];
 
@@ -488,12 +496,12 @@ export class DeemixApp {
 				if (!file || !file.data || file.data.id == null) continue;
 				records.push({
 					deezerId: file.data.id,
-					parentId,
-					type,
+					parentId: effectiveParentId,
+					type: effectiveType,
 					title: file.data.title ?? null,
 					artist: file.data.artist ?? null,
-					album,
-					parentTitle,
+					album: albumName,
+					parentTitle: effectiveParentTitle,
 					path: file.path ?? null,
 					status: "success",
 					requestedBy,
