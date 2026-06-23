@@ -527,12 +527,31 @@ export function deleteAlbum(
 	const dirs = new Set<string>();
 	for (const row of pathRows) {
 		if (!row.path) continue;
+		// Delete the audio file itself.
 		try {
 			fs.unlinkSync(row.path);
 		} catch {
 			// File already gone — fine.
 		}
+		// Delete the companion .lrc (synced lyrics) file if present.
+		const lrcPath = row.path.replace(/\.[^/.]+$/, ".lrc");
+		try {
+			fs.unlinkSync(lrcPath);
+		} catch {
+			// No .lrc — fine.
+		}
 		dirs.add(dirname(row.path));
+	}
+	// Delete common cover-art files left in every affected album folder.
+	const coverNames = ["cover.jpg", "cover.png", "folder.jpg", "folder.png"];
+	for (const dir of dirs) {
+		for (const name of coverNames) {
+			try {
+				fs.unlinkSync(`${dir}/${name}`);
+			} catch {
+				// No cover file — fine.
+			}
+		}
 	}
 	for (const dir of dirs) pruneEmptyDirs(dir);
 

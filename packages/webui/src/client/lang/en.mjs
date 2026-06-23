@@ -517,7 +517,7 @@ const en = {
 		deleteFailed: "Couldn't delete",
 		status: {
 			downloaded: "Downloaded",
-			partial: "Partial",
+			partial: "Partially Downloaded",
 			missing: "Missing",
 			failed: "Failed",
 		},
