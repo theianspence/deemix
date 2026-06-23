@@ -321,6 +321,7 @@ onMounted(fetchLibrary);
 }
 .lib-badge.lib-status--downloaded {
 	background: #1db954;
+	color: #fff;
 }
 .lib-status--partial,
 .lib-status--missing {
