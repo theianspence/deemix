@@ -122,6 +122,28 @@ export function generatePath(
 	downloadObjectType: DownloadObject["type"],
 	settings: Settings
 ) {
+	// Flat-path mode: the user's template string defines the entire path relative
+	// to the download root. Split on the last '/' — everything before is the
+	// folder, everything after is the filename. No playlist/artist/album folder
+	// logic applies; the template drives the whole layout.
+	if (settings.flatPathMode) {
+		const tpl =
+			settings.flatPathTemplate || "%artist% - %album%/%tracknumber% - %title%";
+		const rendered = generateTrackName(tpl, track, settings);
+		const slash = rendered.lastIndexOf("/");
+		const filename = slash >= 0 ? rendered.slice(slash + 1) : rendered;
+		const folderPart = slash >= 0 ? rendered.slice(0, slash) : "";
+		const filepath =
+			(settings.downloadLocation || ".") + (folderPart ? `/${folderPart}` : "");
+		return {
+			filename,
+			filepath,
+			artistPath: undefined as string,
+			coverPath: filepath,
+			extrasPath: filepath,
+		};
+	}
+
 	let filenameTemplate = "%artist% - %title%";
 	let singleTrack = false;
 	if (downloadObjectType === "track") {

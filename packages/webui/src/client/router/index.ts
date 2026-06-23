@@ -1,3 +1,5 @@
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { fetchData } from "@/utils/api-utils";
 import { emitter } from "@/utils/emitter";
 import {
@@ -20,6 +22,8 @@ const Search = () => import("@/views/SearchView.vue");
 const Settings = () => import("@/views/SettingsPage.vue");
 const Artist = () => import("@/views/ArtistView.vue");
 const LinkAnalyzer = () => import("@/views/LinkAnalyzer.vue");
+const Library = () => import("@/views/LibraryView.vue");
+const Admin = () => import("@/views/AdminView.vue");
 
 const routes: RouteRecordRaw[] = [
 	{
@@ -64,6 +68,7 @@ const routes: RouteRecordRaw[] = [
 		component: Charts,
 		meta: {
 			notKeepAlive: true,
+			requiresPermission: "canViewCharts",
 		},
 	},
 	{
@@ -72,6 +77,7 @@ const routes: RouteRecordRaw[] = [
 		component: Favorites,
 		meta: {
 			notKeepAlive: true,
+			requiresPermission: "canViewFavorites",
 		},
 	},
 	{
@@ -103,6 +109,26 @@ const routes: RouteRecordRaw[] = [
 		path: "/settings",
 		name: "Settings",
 		component: Settings,
+		meta: {
+			requiresAdmin: true,
+		},
+	},
+	{
+		path: "/library",
+		name: "Library",
+		component: Library,
+		meta: {
+			notKeepAlive: true,
+		},
+	},
+	{
+		path: "/admin",
+		name: "Admin",
+		component: Admin,
+		meta: {
+			notKeepAlive: true,
+			requiresAdmin: true,
+		},
 	},
 	{
 		path: "/search",
@@ -127,11 +153,33 @@ const router = createRouter({
 	},
 });
 
-router.beforeEach((to, _, next) => {
+router.beforeEach(async (to, _, next) => {
 	if (to.name && to.name !== "Home") {
 		document.title = to.name.toString() + " · Deemix";
 	} else {
 		document.title = "Deemix";
+	}
+
+	// Keep admin-only pages out of reach for standard users (the server also
+	// enforces this on every admin endpoint).
+	if (to.meta.requiresAdmin) {
+		const userStore = useUserStore(pinia);
+		await userStore.ensureLoaded();
+		if (!userStore.isAdmin) {
+			next({ name: "Home" });
+			return;
+		}
+	}
+
+	// Redirect away from permission-gated views (Favorites, Charts).
+	if (to.meta.requiresPermission) {
+		const userStore = useUserStore(pinia);
+		await userStore.ensureLoaded();
+		const perm = to.meta.requiresPermission as keyof typeof userStore;
+		if (!userStore[perm]) {
+			next({ name: "Home" });
+			return;
+		}
 	}
 
 	switch (to.name) {

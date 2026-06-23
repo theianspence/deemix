@@ -56,6 +56,8 @@ export interface Settings {
 	createCDFolder?: boolean;
 	createStructurePlaylist?: boolean;
 	createSingleFolder?: boolean;
+	flatPathMode?: boolean;
+	flatPathTemplate?: string;
 	padTracks?: boolean;
 	paddingSize?: number;
 	illegalCharacterReplacer?: string;

@@ -85,6 +85,11 @@ const en = {
 		ids: {
 			invalidURL: "URL not recognized",
 			unsupportedURL: "URL not supported yet",
+			tracksNotAllowed:
+				"You don't have permission to download individual tracks.",
+			playlistsNotAllowed: "You don't have permission to download playlists.",
+			discographyNotAllowed:
+				"You don't have permission to download whole artists.",
 			ISRCnotOnDeezer: "Track ISRC is not available on Deezer",
 			notYourPrivatePlaylist: "You can't download others private playlists.",
 			spotifyDisabled: "Spotify Features is not setted up correctly.",
@@ -284,6 +289,10 @@ const en = {
 			createCDFolder: "Create folder for CDs",
 			createStructurePlaylist: "Create folder structure for playlists",
 			createSingleFolder: "Create folder structure for singles",
+			flatPathMode: "Flat path mode",
+			flatPathTemplate: "Path template",
+			flatPathTemplateHint:
+				"Use / to separate folders from the filename. Available variables: %artist%, %album%, %title%, %tracknumber%, %year%, %isrc%, %explicit%",
 		},
 		trackTitles: {
 			title: "Track titles",
@@ -483,12 +492,64 @@ const en = {
 		charts: "charts",
 		favorites: "favorites",
 		linkAnalyzer: "link analyzer",
+		library: "library",
 		settings: "settings",
+		admin: "admin",
 		logs: "logs",
 		about: "about",
 	},
 	tracklist: {
 		downloadSelection: "Download selection",
+		playlistDownloadDisabled:
+			"Playlist downloads aren't enabled for your account.",
+	},
+	downloadIndicator: {
+		downloaded: "Already downloaded",
+		partial: "Partially downloaded (some files missing)",
+		missing: "Downloaded file is missing from disk",
+	},
+	library: {
+		title: "Library",
+		searchPlaceholder: "Search library…",
+		empty: "Nothing downloaded yet.",
+		trackCount: "{n} tracks",
+		failedCount: "{n} failed",
+		deleteAlbum: "Delete album",
+		deleteConfirm:
+			'Delete "{title}" and remove its files from disk? This cannot be undone.',
+		deleted: "Album deleted",
+		deleteFailed: "Couldn't delete",
+		status: {
+			downloaded: "Downloaded",
+			partial: "Partially Downloaded",
+			missing: "Missing",
+			failed: "Failed",
+			none: "Not Downloaded",
+		},
+	},
+	admin: {
+		title: "Admin panel",
+		stats: {
+			title: "Statistics",
+			totalDownloads: "Total downloads",
+			diskUsage: "Disk usage",
+			users: "Users",
+			user: "User",
+			downloads: "Downloads",
+			downloadDir: "Download directory",
+		},
+		account: {
+			title: "Deezer account",
+			description:
+				"The ARL configured here is the single shared Deezer account used for every user's searches and downloads.",
+			loggedInAs: "Currently logged in",
+			notConfigured: "No Deezer account configured. Add an ARL below.",
+			arlPlaceholder: "Paste the shared Deezer ARL",
+			save: "Save & log in",
+			logout: "Log out",
+			loggedOut: "Logged out of the shared Deezer account",
+			howToFindArl: "How do I find my ARL?",
+		},
 	},
 };
 

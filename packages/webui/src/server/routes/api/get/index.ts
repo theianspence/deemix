@@ -18,6 +18,13 @@ import getUserFavorites from "./getUserFavorites.js";
 import getQueue from "./getQueue.js";
 import spotifyStatus from "./spotifyStatus.js";
 import checkForUpdates from "./checkForUpdates.js";
+import me from "./me.js";
+import getHistory from "./getHistory.js";
+import getLibrary from "./getLibrary.js";
+import getLibraryTracks from "./getLibraryTracks.js";
+import downloadStatus from "./downloadStatus.js";
+import albumStatus from "./albumStatus.js";
+import adminStats from "./adminStats.js";
 
 export default [
 	connect,
@@ -40,4 +47,11 @@ export default [
 	getQueue,
 	spotifyStatus,
 	checkForUpdates,
+	me,
+	getHistory,
+	getLibrary,
+	getLibraryTracks,
+	downloadStatus,
+	albumStatus,
+	adminStats,
 ];

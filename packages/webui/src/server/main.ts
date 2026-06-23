@@ -1,4 +1,5 @@
-import { DeemixApp } from "@/deemixApp.js";
+import { DeemixApp, initSharedLogin } from "@/deemixApp.js";
+import { initHistoryDb } from "@/helpers/historyDb.js";
 import { logger, removeOldLogs } from "@/helpers/logger.js";
 import { loadLoginCredentials } from "@/helpers/loginStorage.js";
 import cookieParser from "cookie-parser";
@@ -15,6 +16,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { normalizePort } from "./helpers/port.js";
 import { getErrorCb, getListeningCb } from "./helpers/server-callbacks.js";
+import { authMiddleware } from "./middleware/auth.js";
 import { registerApis } from "./routes/api/register.js";
 import indexRouter from "./routes/index.js";
 import type { Arguments } from "./types.js";
@@ -39,7 +41,13 @@ const isSingleUser =
 
 const app: Express = express();
 
-if (isSingleUser) loadLoginCredentials();
+// Open (and create if needed) the download-history database early so a bad
+// DEEMIX_DB_PATH surfaces at boot rather than on the first download.
+initHistoryDb();
+
+// The shared Deezer account credentials live in /config/login.json regardless of
+// single-user mode, so always load them and log the shared account in below.
+loadLoginCredentials();
 
 app.set("isSingleUser", isSingleUser);
 
@@ -57,6 +65,10 @@ const listener: Listener = {
 	},
 };
 const deemixApp = new DeemixApp(listener);
+
+// Log the shared account in from the stored ARL (best-effort; admins can set or
+// update the ARL later from the Admin panel).
+void initSharedLogin();
 
 /* === Middlewares === */
 app.use(express.json());
@@ -77,6 +89,12 @@ app.use(
 if (process.env.NODE_ENV === "development") {
 	app.use(morgan("dev"));
 }
+
+/* === Auth === */
+// Trust proxy-injected identity headers (or fall back to a local admin in
+// single-user/dev/test). Registered before every route, the static asset
+// handler, and the SPA catch-all so nothing is reachable unauthenticated.
+app.use(authMiddleware);
 
 /* === Routes === */
 app.use("/", indexRouter);

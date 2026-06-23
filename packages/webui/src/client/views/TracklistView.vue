@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import { isEmpty } from "lodash-es";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { sendAddToQueue } from "@/utils/downloads";
+import { useDownloadStatus, markStatusDownloaded, lastCompletedAlbumId } from "@/use/download-status";
 import { convertDuration } from "@/utils/utils";
 import { emitter } from "@/utils/emitter";
 import { useI18n } from "vue-i18n";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
+
+const { getStatus, loadStatuses } = useDownloadStatus();
+function loadTrackStatuses(tracks) {
+	if (!tracks) return;
+	const ids = tracks
+		.filter((track) => track && track.type === "track" && track.id != null)
+		.map((track) => track.id);
+	loadStatuses(ids);
+}
 
 const title = ref("");
 const metadata = ref("");
@@ -17,9 +31,21 @@ const image = ref("");
 const type = ref("empty");
 const link = ref("");
 const body = ref([]);
+const currentAlbumId = ref<string | null>(null);
+
+// Albums download for everyone; playlists (and spotify playlists) require the
+// caller's playlist-download permission.
+const canDownloadThis = computed(
+	() => type.value === "album" || userStore.canDownloadPlaylists
+);
 
 function playPausePreview(e) {
 	emitter.emit("trackPreview:playPausePreview", e);
+}
+function trackDownloadLink(track) {
+	return type.value === "spotifyPlaylist"
+		? track.uri
+		: `https://www.deezer.com/track/${track.id}`;
 }
 function reset() {
 	title.value = "Loading...";
@@ -33,23 +59,6 @@ function reset() {
 }
 function addToQueue(e) {
 	sendAddToQueue(e.currentTarget.dataset.link);
-}
-function toggleAll(e) {
-	body.value.forEach((item) => {
-		if (item.type === "track") {
-			item.selected = e.currentTarget.checked;
-		}
-	});
-}
-function selectedLinks() {
-	const selected = [];
-	if (body.value) {
-		body.value.forEach((item) => {
-			if (item.type === "track" && item.selected)
-				selected.push(type.value === "spotifyPlaylist" ? item.uri : item.link);
-		});
-	}
-	return selected.join(";");
 }
 function showAlbum(data) {
 	reset();
@@ -67,6 +76,7 @@ function showAlbum(data) {
 	} = data;
 
 	type.value = "album";
+	currentAlbumId.value = String(albumID);
 	link.value = `https://www.deezer.com/album/${albumID}`;
 	title.value = albumTitle;
 	explicit.value = explicit_lyrics;
@@ -82,6 +92,7 @@ function showAlbum(data) {
 		body.value = null;
 	} else {
 		body.value = albumTracks;
+		loadTrackStatuses(albumTracks);
 	}
 }
 function showPlaylist(data) {
@@ -110,6 +121,7 @@ function showPlaylist(data) {
 		body.value = null;
 	} else {
 		body.value = playlistTracks;
+		loadTrackStatuses(playlistTracks);
 	}
 }
 function showSpotifyPlaylist(data) {
@@ -142,9 +154,16 @@ function showSpotifyPlaylist(data) {
 		body.value = playlistTracks;
 	}
 }
-function selectRow(_, track) {
-	track.selected = !track.selected;
-}
+
+// When the full album finishes downloading, mark every visible track row as
+// downloaded directly in the shared status map — no DB round-trip needed.
+watch(lastCompletedAlbumId, (completedId) => {
+	if (!completedId || completedId !== currentAlbumId.value) return;
+	const ids = (body.value as any[])
+		.filter((t) => t?.type === "track" && t.id != null)
+		.map((t) => String(t.id));
+	ids.forEach((id) => markStatusDownloaded(id, "downloadStatus"));
+});
 
 onMounted(() => {
 	emitter.on("showAlbum", showAlbum);
@@ -191,19 +210,13 @@ onMounted(() => {
 					<th>
 						<i class="material-icons">timer</i>
 					</th>
-					<th class="table__icon table__cell--center cursor-pointer">
-						<input class="selectAll" type="checkbox" @click="toggleAll" />
-					</th>
+					<th v-if="userStore.canDownloadTracks"></th>
 				</tr>
 			</thead>
 			<tbody>
 				<template v-if="type !== 'spotifyPlaylist'">
-					<template v-for="(track, index) in body">
-						<tr
-							v-if="track.type === 'track'"
-							:key="track.id"
-							@click="selectRow(index, track)"
-						>
+					<template v-for="track in body">
+						<tr v-if="track.type === 'track'" :key="track.id">
 							<td class="table__cell--x-small table__cell--center">
 								<div
 									class="table__cell-content table__cell-content--vertical-center"
@@ -235,6 +248,7 @@ onMounted(() => {
 								<div
 									class="table__cell-content table__cell-content--vertical-center"
 								>
+									<DownloadIndicator :status="getStatus(track.id)" />
 									<i
 										v-if="track.explicit_lyrics"
 										class="material-icons title-icon"
@@ -286,12 +300,19 @@ onMounted(() => {
 							>
 								{{ convertDuration(track.duration) }}
 							</td>
-							<td class="table__icon table__cell--center">
-								<input
-									v-model="track.selected"
-									class="cursor-pointer"
-									type="checkbox"
-								/>
+							<td
+								v-if="userStore.canDownloadTracks"
+								class="table__cell--center group cursor-pointer"
+								:data-link="trackDownloadLink(track)"
+								aria-label="download"
+								@click.stop="addToQueue"
+							>
+								<i
+									class="material-icons group-hover:text-primary transition-colors"
+									:title="t('globals.download_hint')"
+								>
+									get_app
+								</i>
 							</td>
 						</tr>
 						<tr
@@ -311,7 +332,7 @@ onMounted(() => {
 							<td class="table__cell--center">
 								{{ track.number }}
 							</td>
-							<td colspan="4"></td>
+							<td :colspan="userStore.canDownloadTracks ? 4 : 3"></td>
 						</tr>
 					</template>
 				</template>
@@ -343,12 +364,19 @@ onMounted(() => {
 						<td>{{ track.artists[0].name }}</td>
 						<td>{{ track.album.name }}</td>
 						<td>{{ convertDuration(Math.floor(track.duration_ms / 1000)) }}</td>
-						<td>
-							<input
-								v-model="track.selected"
-								class="cursor-pointer"
-								type="checkbox"
-							/>
+						<td
+							v-if="userStore.canDownloadTracks"
+							class="group cursor-pointer"
+							:data-link="track.uri"
+							aria-label="download"
+							@click.stop="addToQueue"
+						>
+							<i
+								class="material-icons group-hover:text-primary transition-colors"
+								:title="t('globals.download_hint')"
+							>
+								get_app
+							</i>
 						</td>
 					</tr>
 				</template>
@@ -366,24 +394,20 @@ onMounted(() => {
 		>
 		<footer class="bg-background-main">
 			<button
+				v-if="canDownloadThis"
 				:data-link="link"
-				class="btn btn-primary mr-2"
+				class="btn btn-primary flex items-center"
 				@click.stop="addToQueue"
 			>
 				{{
 					`${t("globals.download", {
 						thing: t(`globals.listTabs.${type}`, 1),
 					})}`
-				}}
-			</button>
-			<button
-				:data-link="selectedLinks()"
-				class="btn btn-primary flex items-center"
-				@click.stop="addToQueue"
-			>
-				{{ t("tracklist.downloadSelection")
 				}}<i class="material-icons ml-2">file_download</i>
 			</button>
+			<span v-else class="opacity-60">
+				{{ t("tracklist.playlistDownloadDisabled") }}
+			</span>
 		</footer>
 	</div>
 </template>

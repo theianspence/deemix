@@ -4,6 +4,7 @@ import ThemePicker from "@/components/ThemePicker.vue";
 import { mainNavItems } from "@/data/sidebar";
 import { pinia } from "@/stores";
 import { useAppInfoStore } from "@/stores/appInfo";
+import { useUserStore } from "@/stores/user";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -11,6 +12,17 @@ import { useRoute } from "vue-router";
 const { t } = useI18n();
 const route = useRoute();
 const appInfoStore = useAppInfoStore(pinia);
+const userStore = useUserStore(pinia);
+
+const navItems = computed(() =>
+	mainNavItems.filter((item) => {
+		if (item.adminOnly && !userStore.isAdmin) return false;
+		if (item.requiresPermission && !userStore[item.requiresPermission])
+			return false;
+		return true;
+	})
+);
+const displayName = computed(() => userStore.displayName);
 
 const updateAvailable = computed(() => appInfoStore.updateAvailable);
 const hasSlimSidebar = computed(() => appInfoStore.hasSlimSidebar);
@@ -64,7 +76,7 @@ function handleNavClick() {
 
 		<nav className="flex flex-col grow">
 			<router-link
-				v-for="link in mainNavItems"
+				v-for="link in navItems"
 				:key="link.name"
 				:aria-label="link.name"
 				class="hover:bg-background-main text-foreground group relative flex h-16 w-full items-center px-4 no-underline"
@@ -93,6 +105,21 @@ function handleNavClick() {
 				></span>
 			</router-link>
 		</nav>
+
+		<div
+			v-if="displayName"
+			class="text-foreground flex items-center px-4 py-2 opacity-80"
+			:class="{ 'justify-center': hasSlimSidebar }"
+			:title="displayName"
+		>
+			<i class="material-icons side_icon p-2 text-2xl">account_circle</i>
+			<span
+				:class="{ hidden: hasSlimSidebar }"
+				class="ml-1 overflow-hidden truncate"
+			>
+				{{ displayName }}
+			</span>
+		</div>
 
 		<ThemePicker />
 	</aside>

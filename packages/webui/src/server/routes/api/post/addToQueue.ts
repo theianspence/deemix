@@ -18,7 +18,11 @@ const handler: ApiHandler["handler"] = async (req, res) => {
 	let obj: any;
 
 	try {
-		obj = await deemix.addToQueue(dz, url, bitrate);
+		obj = await deemix.addToQueue(dz, url, bitrate, false, req.user?.username, {
+			track: !!req.user?.canDownloadTracks,
+			playlist: !!req.user?.canDownloadPlaylists,
+			discography: !!req.user?.canDownloadDiscography,
+		});
 	} catch (e: any) {
 		res.send({ result: false, errid: e.name, data: { url, bitrate } });
 		switch (e.name) {

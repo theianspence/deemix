@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import BaseLoadingPlaceholder from "@/components/globals/BaseLoadingPlaceholder.vue";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import PreviewControls from "@/components/globals/PreviewControls.vue";
 import ResultsError from "@/components/search/ResultsError.vue";
 import { formatTitle } from "@/data/search";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
+import { useDownloadStatus } from "@/use/download-status";
 import { emitter } from "@/utils/emitter";
 import { convertDuration } from "@/utils/utils";
+import { watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 interface Props {
@@ -20,6 +25,18 @@ interface Props {
 const { viewInfo, itemsToShow = 6, wantHeaders = false } = defineProps<Props>();
 
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
+
+const { getStatus, loadStatuses } = useDownloadStatus();
+watch(
+	() => viewInfo?.data,
+	(data) => {
+		if (data && data.length) {
+			loadStatuses(data.slice(0, itemsToShow).map((track) => track.trackID));
+		}
+	},
+	{ immediate: true }
+);
 
 const playPausePreview = (e: MouseEvent) => {
 	emitter.emit("trackPreview:playPausePreview", e);
@@ -47,7 +64,11 @@ const playPausePreview = (e: MouseEvent) => {
 						<th class="h-12 pb-3">
 							<i class="material-icons">timer</i>
 						</th>
-						<th class="h-12 pb-3" style="width: 3.5rem"></th>
+						<th
+							v-if="userStore.canDownloadTracks"
+							class="h-12 pb-3"
+							style="width: 3.5rem"
+						></th>
 					</tr>
 				</thead>
 
@@ -68,18 +89,29 @@ const playPausePreview = (e: MouseEvent) => {
 							</span>
 						</td>
 
-						<td class="table__cell table__cell--large">
-							<div
-								class="table__cell-content table__cell-content--vertical-center break-words"
+						<router-link
+							v-slot="{ navigate }"
+							custom
+							:to="{ name: 'Album', params: { id: track.albumID } }"
+						>
+							<td
+								role="link"
+								class="table__cell table__cell--large"
+								@click="navigate"
 							>
-								<i
-									v-if="track.isTrackExplicit"
-									class="material-icons title-icon"
-									>explicit</i
+								<div
+									class="table__cell-content table__cell-content--vertical-center cursor-pointer break-words hover:underline"
 								>
-								{{ formatTitle(track) }}
-							</div>
-						</td>
+									<DownloadIndicator :status="getStatus(track.trackID)" />
+									<i
+										v-if="track.isTrackExplicit"
+										class="material-icons title-icon"
+										>explicit</i
+									>
+									{{ formatTitle(track) }}
+								</div>
+							</td>
+						</router-link>
 
 						<router-link
 							v-slot="{ navigate }"
@@ -118,6 +150,7 @@ const playPausePreview = (e: MouseEvent) => {
 						</td>
 
 						<td
+							v-if="userStore.canDownloadTracks"
 							class="table__cell--center group cursor-pointer"
 							:data-link="track.trackLink"
 							aria-label="download"

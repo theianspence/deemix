@@ -136,6 +136,11 @@ makefile       text eol=lf
 *.tar binary
 *.zip binary
 
+## DOCKER s6-overlay init scripts (extensionless) — must stay LF so their
+## `#!/usr/bin/with-contenv bash` shebang works inside the container even when
+## the repo is checked out on Windows.
+docker/** text eol=lf
+
 ## FONTS
 *.ttf   binary
 *.eot   binary

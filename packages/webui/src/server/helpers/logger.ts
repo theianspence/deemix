@@ -56,7 +56,12 @@ export function removeOldLogs(logFilesNumber: number) {
 	logs.sort();
 	if (logs.length > logFilesNumber) {
 		for (let i = 0; i < logs.length - logFilesNumber; i++) {
-			fs.unlinkSync(joinPath(logFolder, logs[i] + ".log"));
+			try {
+				fs.unlinkSync(joinPath(logFolder, logs[i] + ".log"));
+			} catch {
+				// The file may already be gone (e.g. another process/test worker
+				// pruned it concurrently). A missing old log is not an error.
+			}
 		}
 	}
 }

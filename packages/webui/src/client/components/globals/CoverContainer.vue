@@ -8,9 +8,13 @@ interface Props {
 	isRounded?: boolean;
 	isCircle?: boolean;
 	link: string;
+	/** Show the download overlay. Defaults to true; pass false to hide it. */
+	showDownload?: boolean;
 }
 
-defineProps<Props>();
+// withDefaults is required: Vue casts an absent Boolean prop to `false`, which
+// would otherwise hide the download overlay everywhere it isn't passed.
+withDefaults(defineProps<Props>(), { showDownload: true });
 </script>
 
 <template>
@@ -23,6 +27,7 @@ defineProps<Props>();
 		/>
 
 		<button
+			v-if="showDownload !== false"
 			role="button"
 			aria-label="download"
 			:data-link="link"

@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import BaseTab from "@/components/globals/BaseTab.vue";
 import BaseTabs from "@/components/globals/BaseTabs.vue";
+import DownloadIndicator from "@/components/globals/DownloadIndicator.vue";
 import { formatArtistData, getArtistData } from "@/data/artist";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
+import { useDownloadStatus } from "@/use/download-status";
 import { checkNewRelease } from "@/utils/dates";
 import { sendAddToQueue } from "@/utils/downloads";
 import { orderBy } from "lodash-es";
-import { computed, reactive, ref, unref } from "vue";
+import { computed, reactive, ref, unref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
 
 const head = ref([
 	{
@@ -97,6 +102,17 @@ const sortedData = computed(() => {
 
 	return orderBy(state.currentRelease, sortKey, state.sortOrder);
 });
+
+const { getStatus, loadStatuses } = useDownloadStatus("albumStatus");
+watch(
+	sortedData,
+	(releases) => {
+		if (releases && releases.length) {
+			loadStatuses(releases.map((release) => release.releaseID));
+		}
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>
@@ -105,6 +121,7 @@ const sortedData = computed(() => {
 			<h1 class="m-0">{{ state.artistName }}</h1>
 
 			<div
+				v-if="userStore.canDownloadDiscography"
 				class="bg-primary text-grayscale-870 ml-auto grid h-16 w-16 cursor-pointer place-items-center rounded-full"
 				aria-label="download"
 				role="button"
@@ -178,7 +195,8 @@ const sortedData = computed(() => {
 								>explicit</i
 							>
 							<div>
-								<span class="hover:text-primary flex">
+								<span class="hover:text-primary flex items-center">
+									<DownloadIndicator :status="getStatus(release.releaseID)" />
 									{{ release.releaseTitle }}
 									<i
 										v-if="checkNewRelease(release.releaseDate)"
@@ -214,7 +232,7 @@ const sortedData = computed(() => {
 				</tr>
 			</tbody>
 		</table>
-		<footer class="bg-background-main">
+		<footer v-if="userStore.canDownloadDiscography" class="bg-background-main">
 			<div style="flex-grow: 1">
 				<button
 					:data-link="downloadLink + '/discography'"

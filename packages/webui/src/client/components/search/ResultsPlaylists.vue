@@ -2,6 +2,8 @@
 import BaseLoadingPlaceholder from "@/components/globals/BaseLoadingPlaceholder.vue";
 import CoverContainer from "@/components/globals/CoverContainer.vue";
 import ResultsError from "@/components/search/ResultsError.vue";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { useI18n } from "vue-i18n";
 
 interface Props {
@@ -17,6 +19,7 @@ interface Props {
 const { viewInfo, itemsToShow = 6 } = defineProps<Props>();
 
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
 </script>
 
 <template>
@@ -52,6 +55,7 @@ const { t } = useI18n();
 								is-rounded
 								:cover="playlist.playlistPictureMedium"
 								:link="playlist.playlistLink"
+								:show-download="userStore.canDownloadPlaylists"
 								@click.stop="$emit('add-to-queue', $event)"
 							/>
 

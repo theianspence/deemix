@@ -80,6 +80,9 @@ export class GW {
 	httpHeaders: any;
 	cookieJar: any;
 	api_token: any;
+	private _gqlJwt: string | null = null;
+	private _gqlJwtExpiry: number = 0;
+	private _gqlJwtPending: Promise<string> | null = null;
 
 	constructor(cookieJar, headers) {
 		this.httpHeaders = headers;
@@ -189,6 +192,98 @@ export class GW {
 
 	get_track_lyrics(sng_id) {
 		return this.api_call("song.getLyrics", { SNG_ID: sng_id });
+	}
+
+	private async _getGqlJwt(): Promise<string> {
+		const now = Date.now() / 1000;
+		if (this._gqlJwt && now < this._gqlJwtExpiry - 30) return this._gqlJwt;
+		// Deduplicate concurrent JWT requests: if one is already in-flight, wait for it.
+		if (this._gqlJwtPending) return this._gqlJwtPending;
+		this._gqlJwtPending = this._fetchGqlJwt().finally(
+			() => (this._gqlJwtPending = null)
+		);
+		return this._gqlJwtPending;
+	}
+
+	private async _fetchGqlJwt(): Promise<string> {
+		const raw = (
+			await got
+				.post("https://auth.deezer.com/login/arl", {
+					searchParams: { jo: "p", rto: "c", i: "c" },
+					cookieJar: this.cookieJar,
+					headers: this.httpHeaders,
+					https: { rejectUnauthorized: false },
+				})
+				.text()
+		).trim();
+		console.warn(
+			"[GQL] JWT auth raw response (first 120 chars):",
+			raw.slice(0, 120)
+		);
+		// The endpoint may return a raw JWT string or a JSON envelope.
+		let jwt = raw;
+		if (raw.startsWith("{")) {
+			const parsed = JSON.parse(raw);
+			jwt = parsed.jwt ?? parsed.access_token ?? parsed.token ?? raw;
+		}
+		// Decode the expiry from the JWT payload (second base64url segment).
+		const segment = (jwt.split(".")[1] ?? "")
+			.replace(/-/g, "+")
+			.replace(/_/g, "/");
+		const payload = JSON.parse(Buffer.from(segment, "base64").toString());
+		console.warn(
+			"[GQL] JWT acquired, expires:",
+			new Date(payload.exp * 1000).toISOString()
+		);
+		this._gqlJwt = jwt;
+		this._gqlJwtExpiry = payload.exp;
+		return jwt;
+	}
+
+	/**
+	 * Fetch synced lyrics from Deezer's GraphQL endpoint (pipe.deezer.com).
+	 * Returns data shaped like song.getLyrics so that Lyrics.parseLyrics() works
+	 * unchanged. Throws if the track has no lyrics or auth fails.
+	 */
+	async get_track_lyrics_gql(sng_id: string | number): Promise<any> {
+		const jwt = await this._getGqlJwt();
+		const response: any = await got
+			.post("https://pipe.deezer.com/api", {
+				headers: {
+					...this.httpHeaders,
+					Authorization: `Bearer ${jwt}`,
+					"Content-Type": "application/json",
+				},
+				json: {
+					operationName: "GetTrackLyrics",
+					variables: { trackId: String(sng_id) },
+					query: `query GetTrackLyrics($trackId: String!) {
+						track(trackId: $trackId) {
+							lyrics {
+								synchronizedLines { lrcTimestamp line milliseconds duration }
+								text
+							}
+						}
+					}`,
+				},
+			})
+			.json();
+		const lyrics = response?.data?.track?.lyrics;
+		const syncCount = lyrics?.synchronizedLines?.length ?? 0;
+		console.warn(
+			`[GQL] track ${sng_id}: lyrics=${!!lyrics} syncLines=${syncCount}`
+		);
+		if (!lyrics) throw new Error("No GQL lyrics");
+		// Normalise to the legacy song.getLyrics shape so parseLyrics() needs no changes.
+		return {
+			LYRICS_TEXT: lyrics.text || "",
+			LYRICS_SYNC_JSON: (lyrics.synchronizedLines || []).map((l: any) => ({
+				lrc_timestamp: l.lrcTimestamp,
+				line: l.line,
+				milliseconds: String(l.milliseconds ?? 0),
+				duration: String(l.duration ?? 0),
+			})),
+		};
 	}
 
 	async get_tracks(sng_ids) {

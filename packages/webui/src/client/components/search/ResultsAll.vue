@@ -13,16 +13,27 @@ import {
 	formatPlaylist,
 } from "@/data/search";
 import { standardizeData } from "@/data/standardize";
+import { pinia } from "@/stores";
+import { useUserStore } from "@/stores/user";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 
 const { t } = useI18n();
+const userStore = useUserStore(pinia);
 
 interface Props {
 	viewInfo: any;
 }
 
 const { viewInfo } = defineProps<Props>();
+
+// Hide the playlist section from users who can't download playlists.
+const visibleOrder = computed(() =>
+	(viewInfo?.ORDER || []).filter(
+		(section: string) =>
+			section !== "PLAYLIST" || userStore.canDownloadPlaylists
+	)
+);
 
 const thereAreResults = computed(() => {
 	const areInfosLoaded = !!viewInfo;
@@ -58,7 +69,7 @@ function checkSectionResults(section) {
 
 		<template v-else>
 			<section
-				v-for="section in viewInfo.ORDER"
+				v-for="section in visibleOrder"
 				:key="section"
 				class="border-grayscale-500 float-none border-t py-5 first:border-t-0"
 			>

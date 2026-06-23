@@ -34,7 +34,9 @@ export const DEFAULT_SETTINGS: Settings = {
 	albumNameTemplate: "%artist% - %album%",
 	createCDFolder: true,
 	createStructurePlaylist: false,
-	createSingleFolder: false,
+	createSingleFolder: true,
+	flatPathMode: false,
+	flatPathTemplate: "%artist% - %album%/%tracknumber% - %title%",
 	padTracks: true,
 	padSingleDigit: true,
 	paddingSize: 0,
@@ -107,17 +109,32 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export function saveSettings(settings: Settings, configFolder) {
 	configFolder = configFolder || getConfigFolder();
-	if (!fs.existsSync(configFolder)) fs.mkdirSync(configFolder);
-
-	fs.writeFileSync(
-		configFolder + "config.json",
-		JSON.stringify(settings, null, 2)
-	);
+	try {
+		if (!fs.existsSync(configFolder))
+			fs.mkdirSync(configFolder, { recursive: true });
+		fs.writeFileSync(
+			configFolder + "config.json",
+			JSON.stringify(settings, null, 2)
+		);
+	} catch (e) {
+		console.warn(
+			`[settings] Could not write config.json (${e.code ?? e.message}). ` +
+				"Settings will be used in memory only. " +
+				"Fix: ensure the process has write access to " +
+				configFolder
+		);
+	}
 }
 
 export function loadSettings(configFolder: string) {
 	configFolder = configFolder || getConfigFolder();
-	if (!fs.existsSync(configFolder)) fs.mkdirSync(configFolder);
+	if (!fs.existsSync(configFolder)) {
+		try {
+			fs.mkdirSync(configFolder, { recursive: true });
+		} catch {
+			// continue without the directory
+		}
+	}
 
 	if (!fs.existsSync(configFolder + "config.json"))
 		saveSettings(DEFAULT_SETTINGS, configFolder);
@@ -170,6 +187,7 @@ function check(settings: Settings) {
 		"coverImageTemplate",
 		"artistImageTemplate",
 		"paddingSize",
+		"flatPathTemplate",
 	].forEach((template) => {
 		if (settings[template] === "") {
 			settings[template] = DEFAULT_SETTINGS[template];

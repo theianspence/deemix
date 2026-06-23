@@ -162,16 +162,37 @@ class Track {
 		} else {
 			this.parseTrack(existingTrack);
 
-			// Get Lyrics Data
-			if (!existingTrack.lyrics && this.lyrics.id !== "0") {
+			// Get Lyrics Data. Always try fetching by track id, even when the gw
+			// track carried no lyrics_id — some sources (e.g. album track listings)
+			// omit it while synced lyrics still exist on Deezer, which previously
+			// caused lyrics to be skipped for many album tracks.
+			if (!existingTrack.lyrics) {
 				try {
 					existingTrack.lyrics = await dz.gw.get_track_lyrics(this.id);
 				} catch {
-					this.lyrics.id = "0";
+					/* no lyrics available for this track */
 				}
 			}
-			if (this.lyrics.id !== "0") {
+			if (existingTrack.lyrics) {
+				if (this.lyrics.id === "0") this.lyrics.id = String(this.id);
 				this.lyrics.parseLyrics(existingTrack.lyrics);
+			}
+
+			// If the legacy API produced no synced lyrics, fall back to the
+			// pipe.deezer.com GraphQL endpoint which has much broader coverage.
+			if (!this.lyrics.sync) {
+				try {
+					const gqlLyrics = await dz.gw.get_track_lyrics_gql(this.id);
+					if (gqlLyrics) {
+						if (this.lyrics.id === "0") this.lyrics.id = String(this.id);
+						this.lyrics.parseLyrics(gqlLyrics);
+					}
+				} catch (e) {
+					console.warn(
+						`[GQL] lyrics fallback failed for track ${this.id}:`,
+						e?.message ?? e
+					);
+				}
 			}
 
 			// Parse Album Data

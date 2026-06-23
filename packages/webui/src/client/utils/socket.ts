@@ -1,9 +1,13 @@
 class CustomSocket extends WebSocket {
-	listeners: Record<string, (this: WebSocket, ev: MessageEvent<any>) => any>;
+	// Multiple callbacks per key, stored so they can be individually removed.
+	listeners: Record<string, ((ev: any) => any)[]>;
+	// One native message listener per key routes to all registered callbacks.
+	nativeListeners: Record<string, (ev: MessageEvent<any>) => any>;
 
 	constructor(args: string | URL) {
 		super(args);
 		this.listeners = {};
+		this.nativeListeners = {};
 	}
 
 	emit(key: string, data?: any) {
@@ -13,22 +17,37 @@ class CustomSocket extends WebSocket {
 	}
 
 	on(key: string, cb: (ev: any) => any) {
-		if (!Object.keys(this.listeners).includes(key)) {
-			this.listeners[key] = cb;
+		if (!this.listeners[key]) {
+			this.listeners[key] = [];
 
-			this.addEventListener("message", (event) => {
+			const native = (event: MessageEvent<any>) => {
 				const messageData = JSON.parse(event.data);
-
 				if (messageData.key === key) {
-					cb(messageData.data);
+					this.listeners[key]?.forEach((fn) => fn(messageData.data));
 				}
-			});
+			};
+			this.nativeListeners[key] = native;
+			this.addEventListener("message", native);
+		}
+
+		if (!this.listeners[key].includes(cb)) {
+			this.listeners[key].push(cb);
 		}
 	}
 
-	off(key: string) {
-		if (Object.keys(this.listeners).includes(key)) {
-			this.removeEventListener("message", this.listeners[key]);
+	// Pass cb to remove a specific listener; omit to remove all listeners for key.
+	off(key: string, cb?: (ev: any) => any) {
+		if (!this.listeners[key]) return;
+
+		if (cb) {
+			this.listeners[key] = this.listeners[key].filter((fn) => fn !== cb);
+		} else {
+			this.listeners[key] = [];
+		}
+
+		if (this.listeners[key].length === 0) {
+			this.removeEventListener("message", this.nativeListeners[key]);
+			delete this.nativeListeners[key];
 			delete this.listeners[key];
 		}
 	}

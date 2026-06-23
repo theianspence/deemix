@@ -34,7 +34,11 @@ const methods: Method[] = [
 export function registerApis(app: Application) {
 	methods.forEach(({ method, endpoints }) => {
 		endpoints.forEach((endpoint) => {
-			app[method](prependApiPath(endpoint.path), endpoint.handler);
+			app[method](
+				prependApiPath(endpoint.path),
+				...(endpoint.middleware ?? []),
+				endpoint.handler
+			);
 		});
 	});
 }

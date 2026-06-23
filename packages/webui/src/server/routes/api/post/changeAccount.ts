@@ -1,4 +1,5 @@
 import { sessionDZ } from "@/deemixApp.js";
+import { requireAdmin } from "@/middleware/auth.js";
 import { type ApiHandler } from "@/types.js";
 import { Deezer } from "deezer-sdk";
 import type { RequestHandler } from "express";
@@ -29,6 +30,6 @@ const handler: RequestHandler<any, any, any, ChangeAccountQuery> = (
 	res.status(200).send(accountData);
 };
 
-const apiHandler: ApiHandler = { path, handler };
+const apiHandler: ApiHandler = { path, handler, middleware: [requireAdmin] };
 
 export default apiHandler;

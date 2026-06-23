@@ -31,3 +31,8 @@ packages/webui/public/js/*
 .turbo
 tsconfig.tsbuildinfo
 vite.config.*.timestamp-*
+
+# Local docker-compose testing (single-user override + bind-mount dirs)
+docker-compose.override.yml
+/config/
+/downloads/

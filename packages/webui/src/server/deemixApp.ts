@@ -1,6 +1,11 @@
 import { CantStream, NotLoggedIn } from "@/helpers/errors.js";
+import {
+	addDownloadRecords,
+	type DownloadRecord,
+} from "@/helpers/historyDb.js";
 import { logger } from "@/helpers/logger.js";
-import { GUI_VERSION, WEBUI_PACKAGE_VERSION } from "@/helpers/versions.js";
+import { getLoginCredentials } from "@/helpers/loginStorage.js";
+import { WEBUI_PACKAGE_VERSION } from "@/helpers/versions.js";
 import {
 	Collection,
 	Convertable,
@@ -20,7 +25,7 @@ import {
 import { Deezer, setDeezerCacheDir } from "deezer-sdk";
 import fs from "fs";
 import got, { type Response as GotResponse } from "got";
-import { sep } from "path";
+import { dirname, sep } from "path";
 import { v4 as uuidv4 } from "uuid";
 
 // Constants
@@ -28,7 +33,40 @@ export const configFolder: string = utils.getConfigFolder();
 setDeezerCacheDir(configFolder);
 export const defaultSettings: Settings = DEFAULT_SETTINGS;
 
-export const sessionDZ: Record<string, Deezer> = {};
+// In the multi-user / proxy-auth model there is a single shared Deezer account
+// (one ARL managed by admins) used for everyone's searches and downloads. We
+// expose it through a Proxy with the original `sessionDZ` shape so the ~20
+// existing endpoints (`sessionDZ[req.session.id]`) keep working untouched — the
+// session id is ignored and every lookup returns the one shared instance.
+let sharedDeezer = new Deezer();
+export const sessionDZ: Record<string, Deezer> = new Proxy(
+	{} as Record<string, Deezer>,
+	{
+		get: () => sharedDeezer,
+		set: (_target, _prop, value) => {
+			sharedDeezer = value as Deezer;
+			return true;
+		},
+	}
+);
+
+/** Log the shared account in from the stored ARL at server startup. */
+export async function initSharedLogin(): Promise<void> {
+	const { arl } = getLoginCredentials();
+	if (!arl) {
+		logger.info(
+			"No stored Deezer ARL — an admin must configure one in the Admin panel."
+		);
+		return;
+	}
+	try {
+		const ok = await sharedDeezer.loginViaArl(arl);
+		if (ok) logger.info("Logged in to Deezer with the stored ARL.");
+		else logger.warn("Stored Deezer ARL is invalid or expired.");
+	} catch (e) {
+		logger.error(e);
+	}
+}
 
 type DeezerAvailable = "yes" | "no" | "no-network";
 
@@ -100,7 +138,7 @@ export class DeemixApp {
 			try {
 				const responseJson = await got
 					.get(
-						`https://raw.githubusercontent.com/bambanah/deemix/main/packages/${GUI_VERSION !== undefined ? "gui" : "webui"}/package.json`
+						`https://raw.githubusercontent.com/bambanah/deemix/main/packages/webui/package.json`
 					)
 					.json();
 				this.latestVersion = JSON.parse(JSON.stringify(responseJson)).version;
@@ -134,13 +172,9 @@ export class DeemixApp {
 
 	isUpdateAvailable(): boolean {
 		return (
-			this.latestVersion.localeCompare(
-				GUI_VERSION ?? WEBUI_PACKAGE_VERSION,
-				undefined,
-				{
-					numeric: true,
-				}
-			) === 1
+			this.latestVersion.localeCompare(WEBUI_PACKAGE_VERSION, undefined, {
+				numeric: true,
+			}) === 1
 		);
 	}
 
@@ -175,7 +209,13 @@ export class DeemixApp {
 		dz: Deezer,
 		url: string[],
 		bitrate: number,
-		retry: boolean = false
+		retry: boolean = false,
+		requestedBy: string = "unknown",
+		perms: { track: boolean; playlist: boolean; discography: boolean } = {
+			track: false,
+			playlist: false,
+			discography: false,
+		}
 	) {
 		if (!dz.loggedIn) throw new NotLoggedIn();
 		if (
@@ -199,6 +239,18 @@ export class DeemixApp {
 
 		for (let i = 0; i < url.length; i++) {
 			link = url[i];
+
+			// Whole-artist / discography downloads expand into many albums; gate
+			// them on their own permission before generating anything.
+			if (/\/artist\//i.test(link) && !perms.discography) {
+				this.listener.send("queueError", {
+					link,
+					error: "You don't have permission to download whole artists.",
+					errid: "discographyNotAllowed",
+				});
+				continue;
+			}
+
 			logger.info(`Adding ${link} to queue`);
 			try {
 				const downloadObj = await generateDownloadObject(
@@ -240,6 +292,37 @@ export class DeemixApp {
 		const slimmedObjects: Record<string, any>[] = [];
 
 		downloadObjs.forEach((downloadObj) => {
+			// Permission gating (server-side backstop for the UI). Albums are open
+			// to everyone; individual tracks and playlists require the caller's
+			// download permissions.
+			const objType = downloadObj.type;
+			if (objType === "track" && !perms.track) {
+				// 1-track albums ("singles") are converted to type="track" by the
+				// deemix core (generateAlbumItem → generateTrackItem). They carry
+				// single.albumAPI to signal the original request was album-scoped,
+				// so treat them as album downloads (always permitted).
+				const isAlbumSingle = !!(downloadObj as any).single?.albumAPI;
+				if (!isAlbumSingle) {
+					this.listener.send("queueError", {
+						link: downloadObj.title,
+						error: "You don't have permission to download individual tracks.",
+						errid: "tracksNotAllowed",
+					});
+					return;
+				}
+			}
+			if (
+				(objType === "playlist" || objType === "spotify_playlist") &&
+				!perms.playlist
+			) {
+				this.listener.send("queueError", {
+					link: downloadObj.title,
+					error: "You don't have permission to download playlists.",
+					errid: "playlistsNotAllowed",
+				});
+				return;
+			}
+
 			// Check if element is already in queue
 			if (Object.keys(this.queue).includes(downloadObj.uuid) && !retry) {
 				this.listener.send("alreadyInQueue", downloadObj.getEssentialDict());
@@ -257,13 +340,34 @@ export class DeemixApp {
 			);
 			this.queue[downloadObj.uuid] = downloadObj.getEssentialDict();
 			this.queue[downloadObj.uuid].status = "inQueue";
+			// Attribute the download to the requesting user (from the proxy auth
+			// header). Persisted with the queue item so it survives a restart and
+			// is available when the history record is written on completion.
+			this.queue[downloadObj.uuid].requestedBy = requestedBy;
+
+			// For individual track downloads, stash the parent album ID so that
+			// cancelByDeezerID can cancel them when the user deletes the album from
+			// the library, and so the frontend can update the album-level badge.
+			let slimmed: Record<string, any> = downloadObj.getSlimmedDict();
+			if (downloadObj.type === "track") {
+				const trackAlbum = (downloadObj as any).single?.trackAPI?.album;
+				if (trackAlbum?.id) {
+					const albumId = String(trackAlbum.id);
+					this.queue[downloadObj.uuid].albumId = albumId;
+					slimmed = { ...slimmed, album: { id: albumId, title: trackAlbum.title ?? "" } };
+				}
+			}
 
 			fs.writeFileSync(
 				configFolder + `queue${sep}${downloadObj.uuid}.json`,
-				JSON.stringify({ ...downloadObj.toDict(), status: "inQueue" })
+				JSON.stringify({
+					...downloadObj.toDict(),
+					status: "inQueue",
+					requestedBy,
+				})
 			);
 
-			slimmedObjects.push(downloadObj.getSlimmedDict());
+			slimmedObjects.push(slimmed);
 		});
 		if (slimmedObjects.length === 1)
 			this.listener.send("addedToQueue", slimmedObjects[0]);
@@ -299,6 +403,10 @@ export class DeemixApp {
 					.readFileSync(configFolder + `queue${sep}${currentUUID}.json`)
 					.toString()
 			);
+			const requestedBy: string =
+				currentItem.requestedBy ||
+				this.queue[currentUUID]?.requestedBy ||
+				"unknown";
 			let downloadObject: Single | Collection | Convertable | undefined =
 				undefined;
 
@@ -337,6 +445,30 @@ export class DeemixApp {
 			this.listener.send("startDownload", currentUUID);
 			await this.currentJob.start();
 
+			if (downloadObject.isCanceled) {
+				// Delete every file that finished writing before the cancel arrived,
+				// plus any associated .lrc sidecar. Then prune empty directories.
+				const dirsToCheck = new Set<string>();
+				for (const file of downloadObject.files || []) {
+					const p: string = file?.path;
+					if (!p) continue;
+					try { fs.unlinkSync(p); } catch { }
+					try { fs.unlinkSync(p.replace(/\.[^/.]+$/, ".lrc")); } catch { }
+					dirsToCheck.add(dirname(p));
+				}
+				// Cover art is written to the album folder independently of track files.
+				const coverNames = ["cover.jpg", "cover.png", "folder.jpg", "folder.png", "cover.webp"];
+				for (const dir of dirsToCheck) {
+					for (const name of coverNames) {
+						try { fs.unlinkSync(`${dir}/${name}`); } catch { }
+					}
+				}
+				for (const dir of dirsToCheck) {
+					try { fs.rmdirSync(dir); } catch { }           // album folder (if empty)
+					try { fs.rmdirSync(dirname(dir)); } catch { }  // artist folder (if empty)
+				}
+			}
+
 			if (!downloadObject.isCanceled) {
 				// Set status
 				if (
@@ -350,10 +482,20 @@ export class DeemixApp {
 					this.queue[currentUUID].status = "completed";
 				}
 
-				const savedObject = {
+				// Persist per-track history records for this finished job.
+				this.recordHistory(downloadObject, requestedBy);
+
+				const savedObject: Record<string, any> = {
 					...downloadObject.getSlimmedDict(),
 					status: this.queue[currentUUID].status,
+					requestedBy,
 				};
+				// Preserve albumId for track downloads so cancelByDeezerID can match
+				// them by album when the user deletes the library entry.
+				if (downloadObject.type === "track") {
+					const trackAlbum = (downloadObject as any).single?.trackAPI?.album;
+					if (trackAlbum?.id) savedObject.albumId = String(trackAlbum.id);
+				}
 				// Save queue status
 				this.queue[currentUUID] = savedObject;
 				fs.writeFileSync(
@@ -369,6 +511,71 @@ export class DeemixApp {
 
 			this.currentJob = null;
 		} while (this.queueOrder.length);
+	}
+
+	/**
+	 * Write one history row per track for a finished job, reading the file paths
+	 * and per-track results the Downloader already recorded on the download
+	 * object (`files` for successes, `errors` for per-track failures). The core
+	 * `deemix` package is untouched. DB failures are swallowed so they can never
+	 * break a download.
+	 */
+	recordHistory(downloadObject: any, requestedBy: string) {
+		try {
+			const type: string = downloadObject.type;
+			const uuid: string = downloadObject.uuid;
+			const bitrate: number = downloadObject.bitrate;
+
+			// Individual track downloads are filed under their album so they appear
+			// alongside full-album downloads in the Library rather than as orphaned
+			// single-track entries.
+			const trackAlbum =
+				type === "track" ? downloadObject.single?.trackAPI?.album : null;
+			const effectiveType = trackAlbum ? "album" : type;
+			const effectiveParentId = trackAlbum
+				? String(trackAlbum.id)
+				: String(downloadObject.id);
+			const effectiveParentTitle: string | null =
+				trackAlbum?.title ?? downloadObject.title ?? null;
+			const albumName: string | null =
+				effectiveType === "album" ? effectiveParentTitle : null;
+			// Total track count of the parent album — used to distinguish a 1-track
+			// single (fully downloaded) from a partially-downloaded multi-track album.
+			const parentNbTracks: number | null =
+				downloadObject.single?.albumAPI?.nb_tracks ??
+				trackAlbum?.nb_tracks ??
+				null;
+
+			const records: DownloadRecord[] = [];
+
+			for (const file of downloadObject.files || []) {
+				if (!file || !file.data || file.data.id == null) continue;
+				records.push({
+					deezerId: file.data.id,
+					parentId: effectiveParentId,
+					type: effectiveType,
+					title: file.data.title ?? null,
+					artist: file.data.artist ?? null,
+					album: albumName,
+					parentTitle: effectiveParentTitle,
+					path: file.path ?? null,
+					status: "success",
+					requestedBy,
+					bitrate,
+					uuid,
+					fromSingle: !!trackAlbum,
+					parentNbTracks,
+				});
+			}
+
+			// Deliberately skip error rows: failed tracks are not recorded in the
+			// library. The library represents what is (or was) on disk.
+
+			addDownloadRecords(records);
+		} catch (e) {
+			logger.error("Failed to record download history");
+			logger.error(e);
+		}
 	}
 
 	cancelDownload(uuid: string) {
@@ -482,6 +689,7 @@ export class DeemixApp {
 					}
 					this.queue[downloadObject.uuid] = downloadObject.getEssentialDict();
 					this.queue[downloadObject.uuid].status = "inQueue";
+					this.queue[downloadObject.uuid].requestedBy = currentItem.requestedBy;
 				} else {
 					this.queue[currentItem.uuid] = currentItem;
 				}

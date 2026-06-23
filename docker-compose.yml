@@ -1,10 +1,45 @@
 services:
   deemix:
-    container_name: Deemix
+    container_name: deemix
     build: .
     restart: unless-stopped
-    ports:
-      - 6595:6595
+    environment:
+      # --- Multi-user proxy auth ---
+      # Keep false in production: the proxy-injected identity headers are then
+      # enforced and a request without the user header gets a 401. Set to true
+      # only for a single-user / no-proxy setup (bypasses auth as a local admin).
+      DEEMIX_SINGLE_USER: "false"
+      ADMIN_GROUP: "admins"
+      AUTH_USER_HEADER: "Remote-User"
+      AUTH_GROUP_HEADER: "Remote-Groups"
+      AUTH_NAME_HEADER: "Remote-Name"
+      # --- Download permissions ---
+      # Everyone can download albums. Individual tracks, playlists, and whole-
+      # artist discographies are limited to admins, plus anyone in these optional
+      # groups. Unset => admins only.
+      # TRACK_DOWNLOAD_GROUP: "music-power-users"
+      # PLAYLIST_DOWNLOAD_GROUP: "music-power-users"
+      # DISCOGRAPHY_DOWNLOAD_GROUP: "music-power-users"
+      # --- History database (SQLite only — no Redis, no Postgres) ---
+      DEEMIX_DB_PATH: "/config/history.db"
+      # --- File ownership on bind-mounts ---
+      # The linuxserver base image maps the internal 'abc' user to these ids so
+      # that downloaded files and config are owned by the host user. Set to the
+      # output of `id -u` / `id -g` on the host. On Windows Docker Desktop the
+      # defaults (1000/1000) are usually fine; adjust if you see EACCES errors.
+      PUID: "1000"
+      PGID: "1000"
     volumes:
-      - "${DEEMIX_CONFIG_PATH}:/config"   # Set the `DEEMIX_CONFIG_PATH` environment variable in the shell where `docker-compose up` is being ran
-      - "${DEEMIX_MUSIC_PATH}:/downloads" # Set the `DEEMIX_MUSIC_PATH` environment variable in the shell where `docker-compose up` is being ran
+      - ./downloads:/downloads # music library
+      - ./config:/config # SQLite history DB + Deezer config
+    # deemix is intended to sit BEHIND a reverse proxy that performs forward auth
+    # and injects the identity headers above (Authentik / Authelia / Traefik
+    # Forward Auth / Caddy). Put the proxy and deemix on the same Docker network
+    # and route the proxy to `deemix:6595` instead of publishing to the host.
+    expose:
+      - "6595"
+    # For local testing WITHOUT a proxy, also set DEEMIX_SINGLE_USER=true above
+    # and uncomment the host port mapping below. Anything reaching deemix
+    # directly is otherwise unauthenticated (and will get 401s).
+    # ports:
+    #   - "6595:6595"
