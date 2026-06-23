@@ -207,9 +207,10 @@ export class GW {
 				.text()
 		).trim();
 		// Decode the expiry from the JWT payload (second base64url segment).
-		const payload = JSON.parse(
-			Buffer.from(jwt.split(".")[1], "base64url").toString()
-		);
+		const segment = (jwt.split(".")[1] ?? "")
+			.replace(/-/g, "+")
+			.replace(/_/g, "/");
+		const payload = JSON.parse(Buffer.from(segment, "base64").toString());
 		this._gqlJwt = jwt;
 		this._gqlJwtExpiry = payload.exp;
 		return jwt;
