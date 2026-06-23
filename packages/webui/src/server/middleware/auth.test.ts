@@ -93,15 +93,15 @@ describe("authMiddleware", () => {
 		expect(req.user.canDownloadDiscography).toBe(true);
 	});
 
-	test("standard users default to albums only", () => {
+	test("standard users can download everything when no groups are configured", () => {
 		const { req, res } = mockReqRes({
 			"remote-user": "bob",
 			"remote-groups": "users",
 		});
 		authMiddleware(req, res, () => {});
-		expect(req.user.canDownloadTracks).toBe(false);
-		expect(req.user.canDownloadPlaylists).toBe(false);
-		expect(req.user.canDownloadDiscography).toBe(false);
+		expect(req.user.canDownloadTracks).toBe(true);
+		expect(req.user.canDownloadPlaylists).toBe(true);
+		expect(req.user.canDownloadDiscography).toBe(true);
 	});
 
 	test("configured groups grant per-type download permission", () => {
@@ -112,7 +112,7 @@ describe("authMiddleware", () => {
 		});
 		authMiddleware(req, res, () => {});
 		expect(req.user.canDownloadTracks).toBe(true);
-		expect(req.user.canDownloadPlaylists).toBe(false); // no playlist group
+		expect(req.user.canDownloadPlaylists).toBe(true); // unset = everyone
 	});
 
 	test("single-user bypass injects a local admin", () => {

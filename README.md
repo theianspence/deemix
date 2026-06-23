@@ -63,15 +63,14 @@ A user is an **admin** when `ADMIN_GROUP` appears in their groups header.
 Downloads are scoped by type:
 
 - **Albums** — any authenticated user.
-- **Individual tracks** — admins, plus members of `TRACK_DOWNLOAD_GROUP`.
-- **Playlists** — admins, plus members of `PLAYLIST_DOWNLOAD_GROUP`.
-- **Whole-artist / discography** — admins, plus members of
-  `DISCOGRAPHY_DOWNLOAD_GROUP`.
+- **Individual tracks** — everyone by default; set `TRACK_DOWNLOAD_GROUP` to restrict.
+- **Playlists** — everyone by default; set `PLAYLIST_DOWNLOAD_GROUP` to restrict.
+- **Whole-artist / discography** — everyone by default; set `DISCOGRAPHY_DOWNLOAD_GROUP` to restrict.
 
-With the groups unset (the default), only admins can download tracks, playlists,
-and discographies; everyone else is albums-only. The UI hides the download
-controls a user isn't permitted to use, and the server rejects them as a
-backstop.
+With the group env vars unset (the default), all authenticated users can download
+anything. Set the group vars to restrict a download type to that group plus admins.
+The UI hides controls the user isn't permitted to use, and the server rejects them
+as a backstop.
 
 ## Library & indicators
 
@@ -117,9 +116,9 @@ The provided [`docker-compose.yml`](./docker-compose.yml) defines a single
 | `AUTH_USER_HEADER`           | Username header                          | `Remote-User`        |
 | `AUTH_GROUP_HEADER`          | Groups header                            | `Remote-Groups`      |
 | `AUTH_NAME_HEADER`           | Display-name header                      | `Remote-Name`        |
-| `TRACK_DOWNLOAD_GROUP`       | Group allowed to download tracks         | _(admins only)_      |
-| `PLAYLIST_DOWNLOAD_GROUP`    | Group allowed to download playlists      | _(admins only)_      |
-| `DISCOGRAPHY_DOWNLOAD_GROUP` | Group allowed to download discographies  | _(admins only)_      |
+| `TRACK_DOWNLOAD_GROUP`       | Group allowed to download tracks         | _(everyone)_         |
+| `PLAYLIST_DOWNLOAD_GROUP`    | Group allowed to download playlists      | _(everyone)_         |
+| `DISCOGRAPHY_DOWNLOAD_GROUP` | Group allowed to download discographies  | _(everyone)_         |
 | `FAVORITES_GROUP`            | Group allowed to view the Favorites page | _(everyone)_         |
 | `CHARTS_GROUP`               | Group allowed to view the Charts page    | _(everyone)_         |
 | `DEEMIX_MUSIC_DIR`           | Download directory                       | `/downloads`         |

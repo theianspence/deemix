@@ -36,11 +36,11 @@ export interface AuthConfig {
 	groupHeader: string;
 	nameHeader: string;
 	adminGroup: string;
-	/** Group granting individual-track downloads ("" = admins only). */
+	/** Group granting individual-track downloads ("" = everyone). */
 	trackGroup: string;
-	/** Group granting playlist downloads ("" = admins only). */
+	/** Group granting playlist downloads ("" = everyone). */
 	playlistGroup: string;
-	/** Group granting whole-artist / discography downloads ("" = admins only). */
+	/** Group granting whole-artist / discography downloads ("" = everyone). */
 	discographyGroup: string;
 	/** Group allowed to view Favorites ("" = everyone). */
 	favoritesGroup: string;
@@ -79,14 +79,15 @@ function resolvePermissions(
 	canViewCharts: boolean;
 } {
 	return {
+		// Download permissions: empty group means everyone; non-empty group gates access.
 		canDownloadTracks:
-			isAdmin || (!!config.trackGroup && groups.includes(config.trackGroup)),
+			!config.trackGroup || isAdmin || groups.includes(config.trackGroup),
 		canDownloadPlaylists:
-			isAdmin ||
-			(!!config.playlistGroup && groups.includes(config.playlistGroup)),
+			!config.playlistGroup || isAdmin || groups.includes(config.playlistGroup),
 		canDownloadDiscography:
+			!config.discographyGroup ||
 			isAdmin ||
-			(!!config.discographyGroup && groups.includes(config.discographyGroup)),
+			groups.includes(config.discographyGroup),
 		// View permissions: empty group means everyone; non-empty group gates access.
 		canViewFavorites:
 			!config.favoritesGroup ||
