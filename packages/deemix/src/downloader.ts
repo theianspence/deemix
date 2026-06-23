@@ -277,6 +277,16 @@ export class Downloader {
 			returnData.data = itemData;
 			returnData.path = String(writepath);
 
+			// The audio file already exists, but still write the .lrc if we now
+			// have synced lyrics and the file isn't there yet (e.g. GQL fallback
+			// produced lyrics on a re-download of a previously lyrics-less track).
+			if (this.settings.syncedLyrics && track.lyrics?.sync) {
+				const lrcPath = `${filepath}/${filename}.lrc`;
+				if (!existsSync(lrcPath)) {
+					writeFileSync(lrcPath, track.lyrics.sync);
+				}
+			}
+
 			this.downloadObject.files.push(returnData);
 
 			if (
