@@ -32,7 +32,7 @@ services:
     volumes:
       - ./downloads:/downloads # music library
       - ./config:/config # SQLite history DB + Deezer config
-      - /home/administrator/.ssh/koel:/root/.ssh/koel:ro
+      - /home/administrator/.ssh/koel:/config/koel.key:ro
     # deemix is intended to sit BEHIND a reverse proxy that performs forward auth
     # and injects the identity headers above (Authentik / Authelia / Traefik
     # Forward Auth / Caddy). Put the proxy and deemix on the same Docker network
